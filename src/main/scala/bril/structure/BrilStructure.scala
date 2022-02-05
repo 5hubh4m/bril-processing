@@ -1,6 +1,6 @@
 package bril.structure
 
-import bril.lang.BrilAST._
+import bril.lang.BrilAst._
 import bril.util.Util._
 
 import scala.collection.immutable.VectorMap
@@ -46,9 +46,7 @@ case object BrilStructure {
    * Whether the given instruction is a label
    * or a terminator.
    */
-  private def isTerminator(instr: Instruction) = instr.isInstanceOf[Br] ||
-                                                 instr.isInstanceOf[Jmp] ||
-                                                 instr.isInstanceOf[Ret]
+  private def isTerminator(instr: Instruction) = instr.isInstanceOf[ControlOp] && !instr.isInstanceOf[Call]
 
   /**
    * Given a function, get a list of basic blocks.
@@ -69,7 +67,7 @@ case object BrilStructure {
     // extract the label from the block
     // of supply a random one
     (if (remaining.nonEmpty) blocks :+ remaining else blocks).foldLeft(VectorMap[Ident, Block]())({
-      case m -> (Label(l) :: xs) => m + (l -> xs)
+      case m -> (xs@Label(l) :: _) => m + (l -> xs)
       case m -> xs => m + (randomIndent -> xs)
     })
   }

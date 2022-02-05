@@ -1,12 +1,11 @@
 package bril.run
 
 import bril.lang.BrilParse._
-import bril.structure.BrilStructure._
-import bril.util.DotGraph
+import bril.optim.BrilDce._
 
 import scala.util.{Failure, Success}
 
-object BrilCfg extends App {
+object BrilDce extends App {
 
   // create the AST from the JSON read from stdin and
   // check if the program has been correctly parsed
@@ -16,9 +15,9 @@ object BrilCfg extends App {
       System.exit(1)
 
     case Success(program) =>
-      // print the CFGs to stdout in graphviz format
-      val graphs = toCFGs(program).map({ case f -> cfg => DotGraph(f, cfg) })
-      print(DotGraph.dotDiagram(graphs))
+      // perform dead code elimination and print the program
+      val funcs = program.functions.map(trivialDce).map(reassignmentElimination)
+      print(printProgramToJson(program.copy(functions = funcs)))
   }
 
 }

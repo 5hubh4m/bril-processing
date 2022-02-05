@@ -1,2 +1,0 @@
-command = "bril2json < {filename} | ../scripts/run_degrees"
-output.out = "-"
