@@ -1,9 +1,9 @@
 @main {
   v1: int = const 4;
-  v4d75d: int = const 0;
-  mul1: int = id v4d75d;
+  v2f21f: int = const 0;
+  mul1: int = id v2f21f;
   add1: int = id v1;
   v2: int = const 3;
-  print v4d75d;
+  print v2f21f;
   print v1;
 }

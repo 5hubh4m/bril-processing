@@ -1,12 +1,12 @@
 @main {
   a: int = const 4;
   b: int = const 2;
-  vefc8b: int = const 6;
-  sum2: int = id vefc8b;
+  v2f21f: int = const 6;
+  sum2: int = id v2f21f;
   prod1: int = const 36;
   sum1: int = const 0;
   sum2: int = id sum1;
-  sum3: int = id vefc8b;
+  sum3: int = id v2f21f;
   prod2: int = id prod1;
   print prod1;
 }
