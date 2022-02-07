@@ -40,7 +40,7 @@ case object BrilStructure {
 
     // combine the distributions of individual functions
     (if (ins.isEmpty) Map.empty[Int, Int] else ins.reduce(zipMapUnion(_, _)(_ + _)(0))) ->
-      (if (outs.isEmpty) Map.empty[Int, Int] else outs.reduce(zipMapUnion(_, _)(_ + _)(0)))
+    (if (outs.isEmpty) Map.empty[Int, Int] else outs.reduce(zipMapUnion(_, _)(_ + _)(0)))
   }
 
   /**

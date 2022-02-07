@@ -40,8 +40,8 @@ case object BrilDce {
    * elimination on a function.
    */
   def reassignmentElimination(function: Function): Function = {
-    val blocks = getBlocks(function).values.map(reassignmentElimination)
-    function.copy(instrs = if (blocks.isEmpty) Seq.empty[Instruction] else blocks.reduce(_ ++ _))
+    val blocks = getBlocks(function).values.flatMap(reassignmentElimination).toSeq
+    function.copy(instrs = blocks)
   }
 
   /**
