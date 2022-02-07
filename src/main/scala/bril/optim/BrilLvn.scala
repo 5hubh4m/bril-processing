@@ -263,12 +263,12 @@ case object BrilLvn {
             }
 
           case v@ValueOp(None, typ, _, _, _) =>
-            val lvn = instructionToValue(v)
+            val lvn = foldConstants(instructionToValue(v))
             table -> m -> {
               if (table.valueToNumber.contains(lvn))
                 Id(None, typ, table.valueToVariable(lvn))
               else
-                updateInstruction(v, None, typ)
+                valueToInstruction(lvn, None, typ)
             }
 
           case i => table -> m -> updateInstruction(i)
