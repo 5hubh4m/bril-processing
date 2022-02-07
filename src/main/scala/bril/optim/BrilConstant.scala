@@ -1,7 +1,7 @@
 package bril.optim
 
 import bril.lang.BrilAst._
-import bril.optim.LvnTable._
+import bril.optim.BrilValue._
 
 /**
  * This class contains all the semantic logic
@@ -13,18 +13,19 @@ object BrilConstant {
    * If the value corresponding to the given number is a
    * constant then return it.
    */
-  private def constantValue(v: LvnNumber)(implicit table: LvnTable): Option[Value] =
+  private def constantValue(v: ValueNumber)(implicit table: ValueTable): Option[Value] =
     Some(table.numberToValue(v)).collect({ case ConstValue(c) => c })
 
-  /**
-   * Perform constant folding on the given [[LvnValue]]
-   * given an [[LvnTable]].
-   *
-   * This is where we imbue semantic information into our
-   * optimizer.
-   */
-  implicit class BrilConstantFold(lvn: LvnValue) {
-    def fold(implicit table: LvnTable): LvnValue = lvn match {
+  implicit class ConstantFold(lvn: BrilValue) {
+
+    /**
+     * Perform constant folding on the given [[BrilValue]]
+     * given an [[ValueTable]].
+     *
+     * This is where we imbue semantic information into our
+     * optimizer.
+     */
+    def fold(implicit table: ValueTable): BrilValue = lvn match {
       // equality and comparisons can be done just based on value numbers
       case BinOpValue(EQ, x, y) if x == y => ConstValue(BoolValue(true))
       case BinOpValue(LT, x, y) if x == y => ConstValue(BoolValue(false))
@@ -98,6 +99,7 @@ object BrilConstant {
       // catch-all to return the same thing
       case _ => lvn
     }
+
   }
 
 }

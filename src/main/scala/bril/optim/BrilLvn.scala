@@ -2,7 +2,7 @@ package bril.optim
 
 import bril.lang.BrilAst._
 import bril.optim.BrilConstant._
-import bril.optim.LvnTable._
+import bril.optim.BrilValue._
 import bril.structure.BrilStructure._
 import bril.util.Util._
 
@@ -30,12 +30,12 @@ case object BrilLvn {
     // we iterate on each instruction and keep track of three structures:
     // the LVN table, a map of variables that have to be renamed, and
     // the accumulating list of reformed instructions
-    block.zip(reassigned(block)).foldLeft(LvnTable() -> Map.empty[Ident, Ident] -> Seq.empty[Instruction])({
+    block.zip(reassigned(block)).foldLeft(ValueTable() -> Map.empty[Ident, Ident] -> Seq.empty[Instruction])({
       case tbl -> m -> instrs -> (instr -> reassigned) =>
         // if the instruction has any args we have
         // not seen before assume that are coming from
         // out of scope and add entry for them
-        implicit val table: LvnTable = tbl.addOutOfScopeVars(instr.args.map(a => m.getOrElse(a, a)))
+        implicit val table: ValueTable = tbl.addOutOfScopeVars(instr.args.map(a => m.getOrElse(a, a)))
 
         // create an implicit value for a variable map
         // for assignments which were renamed to
