@@ -254,12 +254,12 @@ case object BrilLvn {
             // in the table then return the value's canonical
             // variable otherwise update the instruction's args
             if (table.valueToNumber.contains(lvn)) {
-              table.addNewVar(dest, lvn) -> m -> Id(Some(dest), typ, table.valueToVariable(lvn))
+              table.addNewVar(dest, lvn) -> (m - dest) -> Id(Some(dest), typ, table.valueToVariable(lvn))
             } else if (reassigned.contains(dest)) {
               val newDest = randomIndent
               table.addNewValue(newDest, lvn) -> (m + (dest -> newDest)) -> valueToInstruction(lvn, Some(newDest), typ)
             } else {
-              table.addNewValue(dest, lvn) -> m -> valueToInstruction(lvn, Some(dest), typ)
+              table.addNewValue(dest, lvn) -> (m - dest) -> valueToInstruction(lvn, Some(dest), typ)
             }
 
           case v@ValueOp(None, typ, _, _, _) =>
