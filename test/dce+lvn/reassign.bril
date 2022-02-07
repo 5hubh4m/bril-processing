@@ -1,5 +1,5 @@
 @main {
-  v1a2c9: int = const 100;
+  a: int = const 100;
   a: int = const 42;
   print a;
 }
