@@ -3,6 +3,8 @@ package bril.optim
 import bril.lang.BrilAst._
 import bril.util.Util._
 
+import scala.collection.immutable.SortedSet
+
 /**
  * This class represents values
  * of a LVN scheme.
@@ -36,14 +38,18 @@ object BrilValue {
   case class ConstValue(value: Value) extends BrilValue
   { def toInstruction(implicit table: ValueTable): ValueOp = Const(value) }
 
-  case class UnOpValue(op: OpType, x: ValueNumber) extends BrilValue
+  case class UnOpValue(op: UnOpType, x: ValueNumber) extends BrilValue
   { def toInstruction(implicit table: ValueTable): ValueOp = UnOp(op, table.numberToVariable(x)) }
 
   case class LoadValue(source: ValueNumber) extends BrilValue
   { def toInstruction(implicit table: ValueTable): ValueOp = Load(table.numberToVariable(source)) }
 
-  case class PhiValue(args: Seq[ValueNumber], labels: Seq[Ident]) extends BrilValue
-  { def toInstruction(implicit table: ValueTable): ValueOp = Phi(args.map(table.numberToVariable), labels) }
+  case class PhiValue(argsAndLabels: SortedSet[(ValueNumber, Ident)]) extends BrilValue {
+    def toInstruction(implicit table: ValueTable): ValueOp = Phi(
+      args = argsAndLabels.toSeq.map(_._1).map(table.numberToVariable),
+      labels = argsAndLabels.toSeq.map(_._2)
+    )
+  }
 
   /**
    * This class defines an LvnValue of type
@@ -51,7 +57,7 @@ object BrilValue {
    * that if the op is commutative, we canonicalize
    * the order of the arguments.
    */
-  class BinOpValue(val op: OpType, private val _x: ValueNumber, private var _y: ValueNumber) extends BrilValue {
+  class BinOpValue(val op: BinOpType, private val _x: ValueNumber, private var _y: ValueNumber) extends BrilValue {
     lazy val x: ValueNumber = if (op.isInstanceOf[CommutativeOpType]) Math.min(_x, _y) else _x
     lazy val y: ValueNumber = if (op.isInstanceOf[CommutativeOpType]) Math.max(_x, _y) else _y
     def toInstruction(implicit table: ValueTable): ValueOp = BinOp(op, table.numberToVariable(x), table.numberToVariable(y))
@@ -60,8 +66,8 @@ object BrilValue {
     override def equals(obj: Any): Boolean = Some(obj).collect({ case BinOpValue(_op, _x, _y) => op == _op && x == _x && y == _y }).getOrElse(false)
   }
   object BinOpValue {
-    def apply(op: OpType, x: ValueNumber, y: ValueNumber): BinOpValue = new BinOpValue(op, x, y)
-    def unapply(v: BinOpValue): Option[(OpType, ValueNumber, ValueNumber)] = Some((v.op, v.x, v.y))
+    def apply(op: BinOpType, x: ValueNumber, y: ValueNumber): BinOpValue = new BinOpValue(op, x, y)
+    def unapply(v: BinOpValue): Some[(OpType, ValueNumber, ValueNumber)] = Some((v.op, v.x, v.y))
   }
 
   implicit class InstructionToValue(instr: ValueOp) {
@@ -76,7 +82,7 @@ object BrilValue {
       case BinOp(op, x, y, _, _) => BinOpValue(op, canonicalNumber(x), canonicalNumber(y))
       case UnOp(op, x, _, _) => UnOpValue(op, canonicalNumber(x))
       case Load(s, _, _) => LoadValue(canonicalNumber(s))
-      case Phi(ss, ls, _, _) => PhiValue(ss.map(canonicalNumber), ls)
+      case Phi(ss, ls, _, _) => PhiValue(SortedSet.from(ss.map(canonicalNumber).zip(ls)))
       case _ => throw new AssertionError(f"$instr should not be a call or alloc instruction.")
     }
 
