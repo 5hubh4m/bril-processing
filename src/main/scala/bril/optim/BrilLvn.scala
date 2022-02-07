@@ -253,10 +253,6 @@ case object BrilLvn {
             // if the instruction is a value that already exists
             // in the table then return the value's canonical
             // variable otherwise update the instruction's args
-            // println(f"Processing: $instr")
-            // println(f"Value Numbers: ${tbl.valueToNumber}\nValue Variables: ${tbl.valueToVariable}\nVariable Numbers: ${tbl.variableToNumber}")
-            // println(f"Remapped: $m")
-            // println(f"Current Value: $lvn\n")
             if (table.valueToNumber.contains(lvn)) {
               table.addNewVar(dest, lvn) -> m -> Id(Some(dest), typ, table.valueToVariable(lvn))
             } else if (reassigned.contains(dest)) {
