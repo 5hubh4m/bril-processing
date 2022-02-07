@@ -23,8 +23,6 @@ case object BrilLvn {
   case class IdValue(source: Ident) extends LvnValue
   case class ConstValue(value: Value) extends LvnValue
   case class UnOpValue(op: OpType, x: LvnNumber) extends LvnValue
-  case class CallValue(func: Ident, args: Seq[LvnNumber]) extends LvnValue
-  case class AllocValue(size: LvnNumber) extends LvnValue
   case class LoadValue(source: LvnNumber) extends LvnValue
   case class PhiValue(args: Seq[LvnNumber], labels: Seq[Ident]) extends LvnValue
 
@@ -120,8 +118,6 @@ case object BrilLvn {
     case Id(_, _, s) => table.numberToValue(canonicalNumber(s))
     case BinOp(op, _, _, x, y) => BinOpValue(op, canonicalNumber(x), canonicalNumber(y))
     case UnOp(op, _, _, x) => UnOpValue(op, canonicalNumber(x))
-    case Call(_, _, func, args) => CallValue(func, args.map(canonicalNumber))
-    case Alloc(_, _, s) => AllocValue(canonicalNumber(s))
     case Load(_, _, s) => LoadValue(canonicalNumber(s))
     case Phi(_, _, ss, ls) => PhiValue(ss.map(canonicalNumber), ls)
   }
@@ -136,8 +132,6 @@ case object BrilLvn {
     case ConstValue(v) => Const(dest, typ, v)
     case UnOpValue(op, x) => UnOp(op, dest, typ, table.numberToVariable(x))
     case BinOpValue(op, x, y) => BinOp(op, dest, typ, table.numberToVariable(x), table.numberToVariable(y))
-    case CallValue(f, as) => Call(dest, typ, f, as.map(table.numberToVariable))
-    case AllocValue(sz) => Alloc(dest, typ, table.numberToVariable(sz))
     case LoadValue(s) => Load(dest, typ, table.numberToVariable(s))
     case PhiValue(ss, ls) => Phi(dest, typ, ss.map(table.numberToVariable), ls)
   }
@@ -232,7 +226,10 @@ case object BrilLvn {
    * Perform local value numbering based substitution
    * on a given basic [[Block]] of instructions.
    */
-  private def localValueNumbering(block: Block): Block =
+  private def localValueNumbering(block: Block): Block = {
+    // we iterate on each instruction and keep track of three structures:
+    // the LVN table, a map of variables that have to be renamed, and
+    // the accumulating list of reformed instructions
     block.tails.foldLeft(LvnTable() -> Map.empty[Ident, Ident] -> Seq.empty[Instruction])({
       case tbl -> m -> instrs -> (instr :: remaining) =>
         // if the instruction has any args we have
@@ -246,13 +243,33 @@ case object BrilLvn {
         // if the instruction is a value operation we need
         // to create a new value for it and update the LVN table
         val newTable -> newMap -> newInstr = instr match {
+          // call and alloc instruction are special because they
+          // both produce a value and have side-effects
+          // so we need to handle then specially i.e don't use
+          // them as values but remove their destinations
+          // from the remapped set and update the arguments
+          case _: Call | _: Alloc => table -> (m -- instr.asInstanceOf[ValueOp].dest) -> updateInstruction(instr)
+
+          // if this is an effect op or a label or a value op with
+          // no destination defined then we just update the arguments
+          case _: EffectOp | _: Label | ValueOp(None, _, _, _, _) => table -> m -> updateInstruction(instr)
+
+          // if the instruction is a value op (that assigns a value)
+          // then we can perform LVN optimisation here
           case v@ValueOp(Some(dest), typ, _, _, _) =>
+            // create the set of variables assigned in future instructions
             lazy val reassigned = remaining.collect({ case ValueOp(Some(d), _, _, _, _) => d })
+
+            // create a value from the instruction and
+            // perform constant folding on the value
             val lvn = foldConstants(instructionToValue(v))
 
             // if the instruction is a value that already exists
             // in the table then return the value's canonical
-            // variable otherwise update the instruction's args
+            // variable otherwise add the new value to the table
+            // with a new number and if the destination of this
+            // new value will be clobbered then rename the destination
+            // and save the mapping in the remapped map
             if (table.valueToNumber.contains(lvn)) {
               table.addNewVar(dest, lvn) -> (m - dest) -> Id(Some(dest), typ, table.valueToVariable(lvn))
             } else if (reassigned.contains(dest)) {
@@ -261,17 +278,6 @@ case object BrilLvn {
             } else {
               table.addNewValue(dest, lvn) -> (m - dest) -> valueToInstruction(lvn, Some(dest), typ)
             }
-
-          case v@ValueOp(None, typ, _, _, _) =>
-            val lvn = foldConstants(instructionToValue(v))
-            table -> m -> {
-              if (table.valueToNumber.contains(lvn))
-                Id(None, typ, table.valueToVariable(lvn))
-              else
-                valueToInstruction(lvn, None, typ)
-            }
-
-          case i => table -> m -> updateInstruction(i)
         }
 
         // return the new table and updated instruction appended
@@ -279,6 +285,7 @@ case object BrilLvn {
 
       case table -> instrs -> _ => table -> instrs
     })._2
+  }
 
   /**
    * Return the canonical variable for value
@@ -290,45 +297,27 @@ case object BrilLvn {
   /**
    * Update an [[Instruction]] based on the given [[LvnTable]].
    */
-  private def updateInstruction(instr: Instruction, dest: Option[Ident], typ: Option[Type])
-                               (implicit varMap: Map[Ident, Ident], table: LvnTable): Instruction = instr match {
-    // simply replace their arguments with
-    // canonicalized ones from the table
-    case ct: Const => ct.copy(dest = dest, typ = typ)
-    case un: UnOp => un.copy(dest = dest, typ = typ, x = canonicalArg(un.x))
-    case bi: BinOp => bi.copy(dest = dest, typ = typ, x = canonicalArg(bi.x), y = canonicalArg(bi.y))
-    case al: Alloc => al.copy(dest = dest, typ = typ, size = canonicalArg(al.size))
-    case ld: Load => ld.copy(dest = dest, typ = typ, source = canonicalArg(ld.source))
-    case ph: Phi => ph.copy(dest = dest, typ = typ, args = ph.args.map(canonicalArg))
-    case cl: Call => cl.copy(dest = dest, typ = typ, args = cl.args.map(canonicalArg))
-    case id: Id => id.copy(dest = dest, typ = typ, source = canonicalArg(id.source))
-
-    // catch all case
-    case _ => instr
-  }
-
-  /**
-   * Update an [[Instruction]] based on the given [[LvnTable]].
-   */
   private def updateInstruction(instr: Instruction)
                                (implicit varMap: Map[Ident, Ident], table: LvnTable): Instruction = instr match {
     case br: Br => br.copy(source = canonicalArg(br.source))
     case rt: Ret => rt.copy(source = rt.source.map(canonicalArg))
     case pr: Print => pr.copy(source = canonicalArg(pr.source))
     case fr: Free => fr.copy(source = canonicalArg(fr.source))
-    case st: Store => st.copy(location = canonicalArg(st.location), source = canonicalArg(st.source))
     case gd: Guard => gd.copy(source = canonicalArg(gd.source))
+    case al: Alloc => al.copy(size = canonicalArg(al.size))
+    case cl: Call => cl.copy(args = cl.args.map(canonicalArg))
+    case st: Store => st.copy(location = canonicalArg(st.location), source = canonicalArg(st.source))
 
     // catch all case
     case _ => instr
-   }
+  }
 
   /**
    * Perform LVN optimisations on a [[Function]].
    */
   def localValueNumbering(function: Function): Function = {
-    val blocks = getBlocks(function).values.map(localValueNumbering)
-    function.copy(instrs = if (blocks.isEmpty) Seq.empty[Instruction] else blocks.reduce(_ ++ _))
+    val blocks = getBlocks(function).values.flatMap(localValueNumbering).toSeq
+    function.copy(instrs = blocks)
   }
 
 }
