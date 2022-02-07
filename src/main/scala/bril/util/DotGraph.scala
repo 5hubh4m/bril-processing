@@ -23,7 +23,7 @@ case class DotGraph[K](name: String, graph: Map[K, Set[K]]) {
    * @return A string
    */
   lazy val toDot: String = {
-    val content = (dotNodes ++ dotEdges).reduce(_ + "\n" + _)
+    val content = (dotNodes ++ dotEdges).mkString("\n")
     f"  subgraph cluster_${name} {\n    label = \"${name}\"\n${content}\n  }\n"
   }
 
@@ -49,7 +49,9 @@ case object DotGraph {
   /**
    * Take a bunch of named graphs and create a graphviz digraph.
    */
-  def dotDiagram[K](cfgs: Iterable[DotGraph[K]]): String =
-    "digraph bril {\n" + cfgs.map(_.toDot).reduce(_ + _) + "}\n"
+  def dotDiagram[K](cfgs: Iterable[DotGraph[K]]): String = {
+    val graphs = cfgs.map(_.toDot).mkString
+    "digraph bril {\n" + graphs + "}\n"
+  }
 
 }

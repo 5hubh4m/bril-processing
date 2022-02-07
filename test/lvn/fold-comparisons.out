@@ -1,0 +1,17 @@
+@main(arg1: int, arg2: int) {
+  a: int = const 4;
+  b: int = const 3;
+  constant_fold2: bool = const false;
+  constant_fold3: bool = id constant_fold2;
+  constant_fold4: bool = const true;
+  constant_fold5: bool = id constant_fold2;
+  constant_fold6: bool = id constant_fold2;
+  should_fold1: bool = id constant_fold4;
+  should_fold3: bool = id constant_fold4;
+  should_fold4: bool = id constant_fold4;
+  should_fold5: bool = id constant_fold2;
+  should_fold6: bool = id constant_fold2;
+  no_fold1: bool = eq arg1 arg2;
+  no_fold2: bool = le arg1 arg2;
+  no_fold3: bool = ge arg1 arg2;
+}

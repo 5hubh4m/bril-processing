@@ -39,7 +39,8 @@ case object BrilStructure {
     val outs = cfgs.map(countOutDegrees)
 
     // combine the distributions of individual functions
-    ins.reduce(zipMapUnion(_, _)(_ + _)(0)) -> outs.reduce(zipMapUnion(_, _)(_ + _)(0))
+    (if (ins.isEmpty) Map.empty[Int, Int] else ins.reduce(zipMapUnion(_, _)(_ + _)(0))) ->
+      (if (outs.isEmpty) Map.empty[Int, Int] else outs.reduce(zipMapUnion(_, _)(_ + _)(0)))
   }
 
   /**
@@ -54,10 +55,10 @@ case object BrilStructure {
   def getBlocks(func: Function): VectorMap[Ident, Block] = {
     // get a list of blocks where the first
     // instruction might be a label
-    val blocks -> remaining = func.instrs.foldLeft(Seq[Seq[Instruction]]() -> Seq[Instruction]())({
+    val blocks -> remaining = func.instrs.foldLeft(Seq.empty[Seq[Instruction]] -> Seq.empty[Instruction])({
       case blocks -> curr -> instr =>
         if (isTerminator(instr)) {
-          (blocks :+ (curr :+ instr), Seq())
+          (blocks :+ (curr :+ instr), Seq.empty)
         } else if (instr.isInstanceOf[Label])
           (if (curr.nonEmpty) blocks :+ curr else blocks, Seq(instr))
         else
@@ -66,9 +67,9 @@ case object BrilStructure {
 
     // extract the label from the block
     // of supply a random one
-    (if (remaining.nonEmpty) blocks :+ remaining else blocks).foldLeft(VectorMap[Ident, Block]())({
+    (if (remaining.nonEmpty) blocks :+ remaining else blocks).foldLeft(VectorMap.empty[Ident, Block])({
       case m -> (xs@Label(l) :: _) => m + (l -> xs)
-      case m -> xs => m + (randomIndent -> xs)
+      case m -> xs => m + (randomLabel -> xs)
     })
   }
 
@@ -81,8 +82,8 @@ case object BrilStructure {
         instrs.lastOption match {
           case Some(Br(_, trueLabel, falseLabel)) => l -> Set(trueLabel, falseLabel)
           case Some(Jmp(jmpLabel)) => l -> Set(jmpLabel)
-          case Some(Ret(_)) => l -> Set[Ident]()
-          case _ => if (idx < blocks.size - 1) l -> Set(blocks.keys(idx + 1)) else l -> Set[Ident]()
+          case Some(Ret(_)) => l -> Set.empty[Ident]
+          case _ => if (idx < blocks.size - 1) l -> Set(blocks.keys(idx + 1)) else l -> Set.empty[Ident]
         }
     }).toMap
 
@@ -107,13 +108,18 @@ case object BrilStructure {
   /**
    * Transpose a graph.
    */
-  private def transpose(cfg: CFG): CFG = cfg.foldLeft(cfg.keys.map(_ -> Set[Ident]()).toMap)({
-    case m -> (k -> vs) => m ++ vs.map(v => v -> (m.getOrElse(v, Set()) + k))
+  private def transpose(cfg: CFG): CFG = cfg.foldLeft(cfg.keys.map(_ -> Set.empty[Ident]).toMap)({
+    case m -> (k -> vs) => m ++ vs.map(v => v -> (m.getOrElse(v, Set.empty) + k))
   })
+
+  /**
+   * Generate a random identifier for a variable.
+   */
+  def randomIndent: Ident = "v" + Random.nextLong().toHexString.slice(0, 5)
 
   /**
    * Generate a random identifier for a label.
    */
-  def randomIndent: Ident = "l" + Random.nextLong().toHexString.slice(0, 5)
+  def randomLabel: Ident = "l" + Random.nextLong().toHexString.slice(0, 5)
 
 }

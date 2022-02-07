@@ -1,2 +1,2 @@
-command = "bril2json < {filename} | ../../scripts/run_dce | bril2txt"
+command = "bril2json < {filename} | ../../scripts/run bril.run.BrilDce | bril2txt"
 output.out = "-"

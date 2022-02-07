@@ -1,0 +1,2 @@
+command = "bril2json < {filename} | ../../scripts/run bril.run.BrilLvn | bril2txt"
+output.out = "-"

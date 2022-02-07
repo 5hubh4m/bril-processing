@@ -15,12 +15,18 @@ case object BrilDce {
    */
   @tailrec
   def trivialDce(function: Function): Function = {
-    // Find the set of used arguments
+    // find the set of used arguments
     val used = function.instrs.flatMap(_.args).toSet
 
-    // Remove the instructions whose results do not get used
-    val instrs = function.instrs.foldLeft(Seq[Instruction]())({ case instrs -> i =>
-      if (i.dest.exists(!used.contains(_))) instrs else instrs :+ i
+    // remove the instructions whose results do not get used
+    // this means either a value op instruction does not return anything or
+    // instruction's results do not get used of course sparing
+    // any instructions that can perform side-effects
+    val instrs = function.instrs.foldLeft(Seq.empty[Instruction])({
+      case instrs -> i if i.isInstanceOf[EffectOp] => instrs :+ i
+      case instrs -> (v: ValueOp) if v.dest.isEmpty => instrs
+      case instrs -> (v: ValueOp) if v.dest.exists(!used.contains(_)) => instrs
+      case instrs -> i => instrs :+ i
     })
 
     // if the length of instructions changes, recurse
@@ -33,22 +39,31 @@ case object BrilDce {
    * Perform simple local reassignment dead code
    * elimination on a function.
    */
-  def reassignmentElimination(function: Function): Function =
-    function.copy(instrs = getBlocks(function).values.map(blockReassignmentElimination).reduce(_ ++ _))
+  def reassignmentElimination(function: Function): Function = {
+    val blocks = getBlocks(function).values.map(reassignmentElimination)
+    function.copy(instrs = if (blocks.isEmpty) Seq.empty[Instruction] else blocks.reduce(_ ++ _))
+  }
 
   /**
    * Implement the local reassignment dead code elimination
    * algorithm for a basic block.
    */
   @tailrec
-  private def blockReassignmentElimination(block: Block): Block = {
+  private def reassignmentElimination(block: Block): Block = {
     // get the index of instructions that can be deleted
-    val _ -> deleted = block.zipWithIndex.foldLeft(Map[Ident, Int]() -> Set[Int]())({
-      case m -> del -> (i -> idx) =>
-        val candidates = m -- i.args
-        i.dest match {
-          case Some(dest) if candidates.contains(dest) => (candidates + (dest -> idx)) -> (del + candidates(dest))
-          case Some(dest) => (candidates + (dest -> idx)) -> del
+    val _ -> deleted = block.zipWithIndex.foldLeft(Map.empty[Ident, Int] -> Set.empty[Int])({
+      case m -> del -> (instr -> idx) =>
+        // remove used arguments from the candidates set
+        val candidates = m -- instr.args
+
+        // depending on the instruction we add it to the delete set
+        instr match {
+          case v: ValueOp if v.dest.exists(candidates.contains) =>
+            (candidates + (v.dest.get -> idx)) -> (del + candidates(v.dest.get))
+
+          case v: ValueOp if v.dest.isDefined =>
+            (candidates + (v.dest.get -> idx)) -> del
+
           case _ => candidates -> del
         }
     })
@@ -59,7 +74,7 @@ case object BrilDce {
     // if the length of instructions changes, recurse
     // otherwise return the same function
     if (deleted.isEmpty) block
-    else blockReassignmentElimination(instrs)
+    else reassignmentElimination(instrs)
   }
 
 }
