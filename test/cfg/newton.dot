@@ -1,0 +1,25 @@
+digraph bril {
+  subgraph cluster_main {
+    label = "main"
+    main0 [label = "lbe289"]
+    main1 [label = "for.cond.1"]
+    main2 [label = "for.body.1"]
+    main3 [label = "for.end.1"]
+    main0 -> main1
+    main1 -> main2
+    main1 -> main3
+    main2 -> main1
+  }
+  subgraph cluster_sqrt {
+    label = "sqrt"
+    sqrt0 [label = "l28197"]
+  }
+  subgraph cluster_diff {
+    label = "diff"
+    diff0 [label = "l1824e"]
+    diff1 [label = "then.1"]
+    diff2 [label = "else.1"]
+    diff0 -> diff1
+    diff0 -> diff2
+  }
+}

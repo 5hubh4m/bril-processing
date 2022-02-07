@@ -30,14 +30,12 @@ case class DotGraph[K](name: String, graph: Map[K, Set[K]]) {
   /**
    * Get the string for all the nodes.
    */
-  private lazy val dotNodes = graph.keys.map(k => f"    ${nodes(k)} [label = \"${k}\"]")
+  private lazy val dotNodes = graph.keys.map(k => f"    ${nodes(k)} [label = \"${k}\"]").toSeq
 
   /**
    * Get the string for for all the edges.
    */
-  private lazy val dotEdges = graph.flatMap({
-    case (k, vs) => vs.map(v => f"    ${nodes(k)} -> ${nodes(v)}")
-  })
+  private lazy val dotEdges = graph.flatMap({ case (k, vs) => vs.map(v => f"    ${nodes(k)} -> ${nodes(v)}") }).toSeq
 
 }
 

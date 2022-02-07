@@ -1,0 +1,2 @@
+command = "bril2json < {filename} | ../../scripts/run -Drandom.seed=2432423 bril.run.BrilCfg"
+output.dot = "-"

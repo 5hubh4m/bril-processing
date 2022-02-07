@@ -1,2 +1,2 @@
-command = "bril2json < {filename} | ../../scripts/run bril.run.BrilDegrees"
+command = "bril2json < {filename} | ../../scripts/run -Drandom.seed=2432423 bril.run.BrilDegrees"
 output.out = "-"

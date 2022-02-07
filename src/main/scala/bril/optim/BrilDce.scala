@@ -23,7 +23,7 @@ case object BrilDce {
     // instruction's results do not get used of course sparing
     // any instructions that can perform side-effects
     val instrs = function.instrs.foldLeft(Seq.empty[Instruction])({
-      case instrs -> i if i.isInstanceOf[EffectOp] => instrs :+ i
+      case instrs -> (i: EffectOp) => instrs :+ i
       case instrs -> (v: ValueOp) if v.dest.isEmpty => instrs
       case instrs -> (v: ValueOp) if v.dest.exists(!used.contains(_)) => instrs
       case instrs -> i => instrs :+ i
@@ -58,6 +58,8 @@ case object BrilDce {
 
         // depending on the instruction we add it to the delete set
         instr match {
+          case _: EffectOp => candidates -> del
+
           case v: ValueOp if v.dest.exists(candidates.contains) =>
             (candidates + (v.dest.get -> idx)) -> (del + candidates(v.dest.get))
 

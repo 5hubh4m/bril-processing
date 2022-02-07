@@ -113,13 +113,16 @@ case object BrilLvn {
    * given an [[LvnTable]] table.
    */
   private def instructionToValue(instr: ValueOp)
-                                (implicit varMap: Map[Ident, Ident], table: LvnTable): LvnValue = instr match {
-    case Const(_, _, v) => ConstValue(v)
-    case Id(_, _, s) => table.numberToValue(canonicalNumber(s))
-    case BinOp(_, _, op, x, y) => BinOpValue(op, canonicalNumber(x), canonicalNumber(y))
-    case UnOp(_, _, op, x) => UnOpValue(op, canonicalNumber(x))
-    case Load(_, _, s) => LoadValue(canonicalNumber(s))
-    case Phi(_, _, ss, ls) => PhiValue(ss.map(canonicalNumber), ls)
+                                (implicit varMap: Map[Ident, Ident], table: LvnTable): LvnValue = {
+    assert(!instr.isInstanceOf[Call] && !instr.isInstanceOf[Alloc], f"$instr should not be a call or alloc instruction.")
+    (instr: @unchecked) match {
+      case Const(v, _, _) => ConstValue(v)
+      case Id(s, _, _) => table.numberToValue(canonicalNumber(s))
+      case BinOp(op, x, y, _, _) => BinOpValue(op, canonicalNumber(x), canonicalNumber(y))
+      case UnOp(op, x, _, _) => UnOpValue(op, canonicalNumber(x))
+      case Load(s, _, _) => LoadValue(canonicalNumber(s))
+      case Phi(ss, ls, _, _) => PhiValue(ss.map(canonicalNumber), ls)
+    }
   }
 
   /**
@@ -185,7 +188,7 @@ case object BrilLvn {
     case BinOpValue(FDiv, x, y) if constantValue(x).exists(_.asNum == 0) && constantValue(y).exists(_.asNum != 0) => ConstValue(NumericValue(0))
 
     // if a pointer add operation is being done with zero then we can return the same thing
-    case BinOpValue(PtrAdd, x, y) if constantValue(y).exists(_.asNum == 0) => table.numberToValue(y)
+    case BinOpValue(PtrAdd, x, y) if constantValue(y).exists(_.asNum == 0) => table.numberToValue(x)
 
     // calculate the results if all values are defined constants
     case UnOpValue(Not, x) if constantValue(x).isDefined => ConstValue(BoolValue(!constantValue(x).map(_.asBool).get))
@@ -235,7 +238,7 @@ case object BrilLvn {
     // a future instruction
     val assignments = block.foldRight(Seq.empty[Set[Ident]])({ case instr -> maps =>
       val last = maps.headOption.getOrElse(Set.empty[Ident])
-      Some(instr).collect({ case ValueOp(Some(dest), _, _, _, _) => last + dest }).getOrElse(last) +: maps
+      Some(instr).collect({ case ValueOp(_, _, _, Some(dest), _) => last + dest }).getOrElse(last) +: maps
     })
 
     // we iterate on each instruction and keep track of three structures:
@@ -256,8 +259,10 @@ case object BrilLvn {
         implicit val varMap: Map[Ident, Ident] = m.withDefault(identity)
 
         // if the instruction is a value operation we need
-        // to create a new value for it and update the LVN table
-        val newTable -> newMap -> newInstr = instr match {
+        // to create a new value for it and update the LVN table;
+        // annotating the expression as unchecked because ValueOp case
+        // will cover all the instances that the compiler can't detect
+        val newTable -> newMap -> newInstr = (instr: @unchecked) match {
           // call and alloc instruction are special because they
           // both produce a value and have side-effects
           // so we need to handle then specially i.e don't use
@@ -267,14 +272,17 @@ case object BrilLvn {
 
           // if this is an effect op or a label or a value op with
           // no destination defined then we just update the arguments
-          case _: EffectOp | _: Label | ValueOp(None, _, _, _, _) => table -> m -> updateInstruction(instr)
+          case _: EffectOp | _: Label | ValueOp(_, _, _, None, _) => table -> m -> updateInstruction(instr)
 
           // if the instruction is a value op (that assigns a value)
           // then we can perform LVN optimisation here
-          case v@ValueOp(Some(dest), typ, _, _, _) =>
+          case v@ValueOp(_, _, _, Some(dest), typ) =>
             // create a value from the instruction and
             // perform constant folding on the value
             val lvn = foldConstants(instructionToValue(v))
+
+            // append the dest and type to the instr
+            def update(i: ValueOp, d: Ident = dest): ValueOp = i.mapDest(_ => Some(d)).mapType(_ => typ)
 
             // if the instruction is a value that already exists
             // in the table then return the value's canonical
@@ -283,12 +291,12 @@ case object BrilLvn {
             // new value will be clobbered then rename the destination
             // and save the mapping in the remapped map
             if (table.valueToNumber.contains(lvn)) {
-              table.addNewVar(dest, lvn) -> (m - dest) -> Id(Some(dest), typ, table.valueToVariable(lvn))
+              table.addNewVar(dest, lvn) -> (m - dest) -> update(Id(table.valueToVariable(lvn)))
             } else if (reassigned.contains(dest)) {
               val newDest = randomIndent
-              table.addNewValue(newDest, lvn) -> (m + (dest -> newDest)) -> valueToInstruction(lvn, Some(newDest), typ)
+              table.addNewValue(newDest, lvn) -> (m + (dest -> newDest)) -> update(valueToInstruction(lvn), newDest)
             } else {
-              table.addNewValue(dest, lvn) -> (m - dest) -> valueToInstruction(lvn, Some(dest), typ)
+              table.addNewValue(dest, lvn) -> (m - dest) -> update(valueToInstruction(lvn))
             }
         }
 

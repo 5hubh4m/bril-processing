@@ -1,0 +1,67 @@
+digraph bril {
+  subgraph cluster_printarray {
+    label = "printarray"
+    printarray3 [label = "l1824e"]
+    printarray2 [label = "done"]
+    printarray1 [label = "loop_end"]
+    printarray4 [label = "body"]
+    printarray0 [label = "loop"]
+    printarray0 -> printarray4
+    printarray0 -> printarray2
+    printarray1 -> printarray0
+    printarray3 -> printarray0
+    printarray4 -> printarray1
+  }
+  subgraph cluster_rand {
+    label = "rand"
+    rand0 [label = "lbe289"]
+  }
+  subgraph cluster_randarray {
+    label = "randarray"
+    randarray1 [label = "loop"]
+    randarray2 [label = "loop_end"]
+    randarray4 [label = "l28197"]
+    randarray3 [label = "done"]
+    randarray0 [label = "body"]
+    randarray0 -> randarray2
+    randarray1 -> randarray0
+    randarray1 -> randarray3
+    randarray2 -> randarray1
+    randarray4 -> randarray1
+  }
+  subgraph cluster_main {
+    label = "main"
+    main0 [label = "l3c21b"]
+  }
+  subgraph cluster_matmul {
+    label = "matmul"
+    matmul12 [label = "sum.loop_end"]
+    matmul6 [label = "sum.loop"]
+    matmul10 [label = "sum.body"]
+    matmul9 [label = "col.done"]
+    matmul0 [label = "sum.done"]
+    matmul1 [label = "col.loop"]
+    matmul4 [label = "col.body"]
+    matmul7 [label = "col.loop_end"]
+    matmul11 [label = "row.body"]
+    matmul8 [label = "row.loop_end"]
+    matmul5 [label = "lec0cb"]
+    matmul2 [label = "row.loop"]
+    matmul3 [label = "row.done"]
+    matmul0 -> matmul7
+    matmul1 -> matmul4
+    matmul1 -> matmul9
+    matmul2 -> matmul11
+    matmul2 -> matmul3
+    matmul4 -> matmul6
+    matmul5 -> matmul2
+    matmul6 -> matmul10
+    matmul6 -> matmul0
+    matmul7 -> matmul1
+    matmul8 -> matmul2
+    matmul9 -> matmul8
+    matmul10 -> matmul12
+    matmul11 -> matmul1
+    matmul12 -> matmul6
+  }
+}

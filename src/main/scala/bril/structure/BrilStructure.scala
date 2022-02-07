@@ -80,9 +80,7 @@ case object BrilStructure {
     blocks.zipWithIndex.map({
       case l -> instrs -> idx =>
         instrs.lastOption match {
-          case Some(Br(_, trueLabel, falseLabel)) => l -> Set(trueLabel, falseLabel)
-          case Some(Jmp(jmpLabel)) => l -> Set(jmpLabel)
-          case Some(Ret(_)) => l -> Set.empty[Ident]
+          case Some(e: EffectOp) if isTerminator(e) => l -> e.labels.toSet
           case _ => if (idx < blocks.size - 1) l -> Set(blocks.keys(idx + 1)) else l -> Set.empty[Ident]
         }
     }).toMap
