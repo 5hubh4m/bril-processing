@@ -1,7 +1,10 @@
 package bril.optim
 
 import bril.lang.BrilAst._
+import bril.optim.BrilConstant._
+import bril.optim.LvnTable._
 import bril.structure.BrilStructure._
+import bril.util.Util._
 
 /**
  * This class implements local value numbering
@@ -10,243 +13,24 @@ import bril.structure.BrilStructure._
 case object BrilLvn {
 
   /**
-   * Type representing a Local Value Numbering
-   * number.
+   * This method takes a block of instructions
+   * and returns the set of assigned identifiers
+   * that occur after each instruction.
    */
-  type LvnNumber = Int
-
-  /**
-   * This class represents values
-   * of a LVN scheme.
-   */
-  trait LvnValue
-  case class IdValue(source: Ident) extends LvnValue
-  case class ConstValue(value: Value) extends LvnValue
-  case class UnOpValue(op: OpType, x: LvnNumber) extends LvnValue
-  case class LoadValue(source: LvnNumber) extends LvnValue
-  case class PhiValue(args: Seq[LvnNumber], labels: Seq[Ident]) extends LvnValue
-
-  /**
-   * This class defines an LvnValue of type
-   * binary operation with the special property
-   * that if the op is commutative, we canonicalize
-   * the order of the arguments.
-   */
-  class BinOpValue(val op: OpType, private val _x: LvnNumber, private var _y: LvnNumber) extends LvnValue {
-    lazy val x: LvnNumber = if (op.isInstanceOf[CommutativeOpType]) Math.min(_x, _y) else _x
-    lazy val y: LvnNumber = if (op.isInstanceOf[CommutativeOpType]) Math.max(_x, _y) else _y
-    override def toString: String = f"BinOpValue($op, $x, $y)"
-    override def hashCode(): Int = (this.getClass, op, x, y).hashCode
-    override def equals(obj: Any): Boolean = Some(obj).collect({ case BinOpValue(_op, _x, _y) => op == _op && x == _x && y == _y }).getOrElse(false)
-  }
-  object BinOpValue {
-    def apply(op: OpType, x: LvnNumber, y: LvnNumber): BinOpValue = new BinOpValue(op, x, y)
-    def unapply(v: BinOpValue): Option[(OpType, LvnNumber, LvnNumber)] = Some((v.op, v.x, v.y))
-  }
-
-  /**
-   * This class represents an LVN table.
-   *
-   * @param valueToNumber mapping from an LVN value to it's number
-   * @param valueToVariable mapping from an LVN value to it's canonical variable
-   * @param variableToNumber mapping from a variable to it's value number
-   * @param numberToVariable mapping from a value number to it's canonical variable
-   * @param numberToValue mapping from a value number to it's value
-   */
-  case class LvnTable(valueToNumber: Map[LvnValue, LvnNumber] = Map.empty,
-                      valueToVariable: Map[LvnValue, Ident] = Map.empty,
-                      variableToNumber: Map[Ident, LvnNumber] = Map.empty,
-                      numberToVariable: Map[LvnNumber, Ident] = Map.empty,
-                      numberToValue: Map[LvnNumber, LvnValue] = Map.empty) {
-
-    /**
-     * Get the next value number.
-     */
-    lazy val nextLvnNumber: LvnNumber = numberToVariable.keys.maxOption.getOrElse(-1) + 1
-
-    /**
-     * Update the table by adding a new value to the table
-     * along with it's canonical variable.
-     */
-    def addNewValue(dest: Ident, lvn: LvnValue): LvnTable = {
-      assert(!valueToNumber.contains(lvn), f"Value $lvn already exists in the table.")
-      copy(
-        valueToNumber = valueToNumber + (lvn -> nextLvnNumber),
-        valueToVariable = valueToVariable + (lvn -> dest),
-        variableToNumber = variableToNumber + (dest -> nextLvnNumber),
-        numberToVariable = numberToVariable + (nextLvnNumber -> dest),
-        numberToValue = numberToValue + (nextLvnNumber -> lvn)
-      )
-    }
-
-    /**
-     * Add a new variable to the table with the given
-     * value number which already exists in the table.
-     */
-    def addNewVar(dest: Ident, lvn: LvnValue): LvnTable = {
-      assert(valueToNumber.contains(lvn), f"Value $lvn does not exist in the table.")
-      copy(variableToNumber = variableToNumber + (dest -> valueToNumber(lvn)))
-    }
-
-    /**
-     * Scan a list of variables and identify which ones
-     * are not present in the table i.e are out-of-scope
-     * variables; then add a LVN Value for each of those
-     * to the table.
-     */
-    def addOutOfScopeVars(args: Seq[Ident]): LvnTable = args match {
-      case a :: as if !variableToNumber.contains(a) => addNewValue(a, IdValue(a)).addOutOfScopeVars(as)
-      case _ :: as => addOutOfScopeVars(as)
-      case Nil => this
-    }
-
-  }
-
-  /**
-   * Return the canonical value represented by the given variable.
-   */
-  private def canonicalNumber(src: Ident)(implicit varMap: Map[Ident, Ident], table: LvnTable): LvnNumber =
-    table.variableToNumber(varMap(src))
-
-  /**
-   * Extract a [[LvnValue]] from a [[ValueOp]] instruction
-   * given an [[LvnTable]] table.
-   */
-  private def instructionToValue(instr: ValueOp)
-                                (implicit varMap: Map[Ident, Ident], table: LvnTable): LvnValue = {
-    assert(!instr.isInstanceOf[Call] && !instr.isInstanceOf[Alloc], f"$instr should not be a call or alloc instruction.")
-    (instr: @unchecked) match {
-      case Const(v, _, _) => ConstValue(v)
-      case Id(s, _, _) => table.numberToValue(canonicalNumber(s))
-      case BinOp(op, x, y, _, _) => BinOpValue(op, canonicalNumber(x), canonicalNumber(y))
-      case UnOp(op, x, _, _) => UnOpValue(op, canonicalNumber(x))
-      case Load(s, _, _) => LoadValue(canonicalNumber(s))
-      case Phi(ss, ls, _, _) => PhiValue(ss.map(canonicalNumber), ls)
-    }
-  }
-
-  /**
-   * Convert a [[LvnValue]] back into a [[ValueOp]] instruction
-   * given an [[LvnTable]] table.
-   */
-  private def valueToInstruction(value: LvnValue)(implicit table: LvnTable): ValueOp = value match {
-    case IdValue(a) => Id(a)
-    case ConstValue(v) => Const(v)
-    case UnOpValue(op, x) => UnOp(op, table.numberToVariable(x))
-    case BinOpValue(op, x, y) => BinOp(op, table.numberToVariable(x), table.numberToVariable(y))
-    case LoadValue(s) => Load(table.numberToVariable(s))
-    case PhiValue(ss, ls) => Phi(ss.map(table.numberToVariable), ls)
-  }
-
-  /**
-   * If the value corresponding to the given number is a
-   * constant then return it.
-   */
-  private def constantValue(v: LvnNumber)(implicit table: LvnTable): Option[Value] =
-    Some(table.numberToValue(v)).collect({ case ConstValue(c) => c })
-
-  /**
-   * Perform constant folding on the given [[LvnValue]]
-   * given an [[LvnTable]].
-   *
-   * This is where we imbue semantic information into our
-   * optimizer.
-   */
-  private def foldConstants(lvn: LvnValue)(implicit table: LvnTable): LvnValue = lvn match {
-    // equality and comparisons can be done just based on value numbers
-    case BinOpValue(EQ, x, y) if x == y => ConstValue(BoolValue(true))
-    case BinOpValue(LT, x, y) if x == y => ConstValue(BoolValue(false))
-    case BinOpValue(GT, x, y) if x == y => ConstValue(BoolValue(false))
-    case BinOpValue(LE, x, y) if x == y => ConstValue(BoolValue(true))
-    case BinOpValue(GE, x, y) if x == y => ConstValue(BoolValue(true))
-    case BinOpValue(FEQ, x, y) if x == y => ConstValue(BoolValue(true))
-    case BinOpValue(FLT, x, y) if x == y => ConstValue(BoolValue(false))
-    case BinOpValue(FGT, x, y) if x == y => ConstValue(BoolValue(false))
-    case BinOpValue(FLE, x, y) if x == y => ConstValue(BoolValue(true))
-    case BinOpValue(FGE, x, y) if x == y => ConstValue(BoolValue(true))
-
-    // if any one of the and/or values is constant then we can determine result
-    case BinOpValue(And, x, _) if constantValue(x).exists(!_.asBool) => ConstValue(BoolValue(false))
-    case BinOpValue(And, _, y) if constantValue(y).exists(!_.asBool) => ConstValue(BoolValue(false))
-    case BinOpValue(Or, x, _) if constantValue(x).exists(_.asBool) => ConstValue(BoolValue(true))
-    case BinOpValue(Or, _, y) if constantValue(y).exists(_.asBool) => ConstValue(BoolValue(true))
-
-    // if any one of the values in sum or mul is 0 then we can determine result
-    case BinOpValue(Add, x, y) if constantValue(x).exists(_.asNum == 0) => table.numberToValue(y)
-    case BinOpValue(Add, x, y) if constantValue(y).exists(_.asNum == 0) => table.numberToValue(x)
-    case BinOpValue(Mul, x, _) if constantValue(x).exists(_.asNum == 0) => ConstValue(NumericValue(0))
-    case BinOpValue(Mul, _, y) if constantValue(y).exists(_.asNum == 0) => ConstValue(NumericValue(0))
-    case BinOpValue(FAdd, x, y) if constantValue(x).exists(_.asNum == 0) => table.numberToValue(y)
-    case BinOpValue(FAdd, x, y) if constantValue(y).exists(_.asNum == 0) => table.numberToValue(x)
-    case BinOpValue(FMul, x, _) if constantValue(x).exists(_.asNum == 0) => ConstValue(NumericValue(0))
-    case BinOpValue(FMul, _, y) if constantValue(y).exists(_.asNum == 0) => ConstValue(NumericValue(0))
-
-    // if the first value of div or last value of sub is zero then we can determine the result
-    case BinOpValue(Sub, x, y) if constantValue(y).exists(_.asNum == 0) => table.numberToValue(x)
-    case BinOpValue(FSub, x, y) if constantValue(y).exists(_.asNum == 0) => table.numberToValue(x)
-    case BinOpValue(Div, x, y) if constantValue(x).exists(_.asNum == 0) && constantValue(y).exists(_.asNum != 0) => ConstValue(NumericValue(0))
-    case BinOpValue(FDiv, x, y) if constantValue(x).exists(_.asNum == 0) && constantValue(y).exists(_.asNum != 0) => ConstValue(NumericValue(0))
-
-    // if a pointer add operation is being done with zero then we can return the same thing
-    case BinOpValue(PtrAdd, x, y) if constantValue(y).exists(_.asNum == 0) => table.numberToValue(x)
-
-    // calculate the results if all values are defined constants
-    case UnOpValue(Not, x) if constantValue(x).isDefined => ConstValue(BoolValue(!constantValue(x).map(_.asBool).get))
-    case BinOpValue(op, x, y) if constantValue(x).isDefined && constantValue(y).isDefined =>
-      val a = constantValue(x).get
-      val b = constantValue(y).get
-
-      // simulate the computation and return the result
-      op match {
-        case Add => ConstValue(NumericValue(a.asNum + b.asNum))
-        case Mul => ConstValue(NumericValue(a.asNum * b.asNum))
-        case Sub => ConstValue(NumericValue(a.asNum - b.asNum))
-        case FAdd => ConstValue(NumericValue(a.asNum + b.asNum))
-        case FMul => ConstValue(NumericValue(a.asNum * b.asNum))
-        case FSub => ConstValue(NumericValue(a.asNum - b.asNum))
-        case Or => ConstValue(BoolValue(a.asBool || b.asBool))
-        case And => ConstValue(BoolValue(a.asBool && b.asBool))
-        case LT => ConstValue(BoolValue(a.asNum < b.asNum))
-        case GT => ConstValue(BoolValue(a.asNum > b.asNum))
-        case LE => ConstValue(BoolValue(a.asNum <= b.asNum))
-        case GE => ConstValue(BoolValue(a.asNum >= b.asNum))
-        case EQ => ConstValue(BoolValue(a.asNum == b.asNum))
-        case FLT => ConstValue(BoolValue(a.asNum < b.asNum))
-        case FGT => ConstValue(BoolValue(a.asNum > b.asNum))
-        case FLE => ConstValue(BoolValue(a.asNum <= b.asNum))
-        case FGE => ConstValue(BoolValue(a.asNum >= b.asNum))
-        case FEQ => ConstValue(BoolValue(a.asNum == b.asNum))
-        case Div if b.asNum != 0 => ConstValue(NumericValue(a.asNum / b.asNum))
-        case FDiv if b.asNum != 0 => ConstValue(NumericValue(a.asNum / b.asNum))
-
-        // catch-all to return the same thing
-        case _ => lvn
-      }
-
-    // catch-all to return the same thing
-    case _ => lvn
+  private def reassigned(block: Block): Seq[Set[Ident]] = {
+    val assigns = block.tails.map(_.collect({ case ValueOp(_, _, _, Some(d), _) => d }).toSet).toSeq
+    if (assigns.isEmpty) Seq.empty else assigns.tail :+ Set.empty
   }
 
   /**
    * Perform local value numbering based substitution
    * on a given basic [[Block]] of instructions.
    */
-  private def localValueNumbering(block: Block): Block = {
-    // iterate over instructions from last to beginning and collect
-    // the values that have been assigned from this point onwards;
-    // this is used to check whether a variable will be clobbered in
-    // a future instruction
-    val assignments = block.foldRight(Seq.empty[Set[Ident]])({ case instr -> maps =>
-      val last = maps.headOption.getOrElse(Set.empty[Ident])
-      Some(instr).collect({ case ValueOp(_, _, _, Some(dest), _) => last + dest }).getOrElse(last) +: maps
-    })
-
+  private def localValueNumbering(block: Block): Block =
     // we iterate on each instruction and keep track of three structures:
     // the LVN table, a map of variables that have to be renamed, and
     // the accumulating list of reformed instructions
-    block
-      .zip(assignments.tail :+ Set.empty[Ident])
-      .foldLeft(LvnTable() -> Map.empty[Ident, Ident] -> Seq.empty[Instruction])({
+    block.zip(reassigned(block)).foldLeft(LvnTable() -> Map.empty[Ident, Ident] -> Seq.empty[Instruction])({
       case tbl -> m -> instrs -> (instr -> reassigned) =>
         // if the instruction has any args we have
         // not seen before assume that are coming from
@@ -256,30 +40,33 @@ case object BrilLvn {
         // create an implicit value for a variable map
         // for assignments which were renamed to
         // avoid clobbering
-        implicit val varMap: Map[Ident, Ident] = m.withDefault(identity)
+        implicit val varMap: Map[Ident, Ident] = m
 
         // if the instruction is a value operation we need
-        // to create a new value for it and update the LVN table;
-        // annotating the expression as unchecked because ValueOp case
-        // will cover all the instances that the compiler can't detect
-        val newTable -> newMap -> newInstr = (instr: @unchecked) match {
-          // call and alloc instruction are special because they
-          // both produce a value and have side-effects
-          // so we need to handle then specially i.e don't use
-          // them as values but remove their destinations
-          // from the remapped set and update the arguments
-          case _: Call | _: Alloc => table -> (m -- instr.asInstanceOf[ValueOp].dest) -> updateInstruction(instr)
+        // to create a new value for it and update the LVN table
+        val newTable -> newMap -> newInstr = instr match {
+          // if this is value instruction which is also
+          // an effect instruction (call/alloc) then we need
+          // to not value-fy but also remove the dest from
+          // the remapped set and also update the arguments
+          case v: ValueOp if v.isInstanceOf[EffectOp] =>
+            table -> (m -- v.dest) -> instr.mapArgs(canonicalArg)
 
-          // if this is an effect op or a label or a value op with
-          // no destination defined then we just update the arguments
-          case _: EffectOp | _: Label | ValueOp(_, _, _, None, _) => table -> m -> updateInstruction(instr)
+          // if this is an effect op or a label then we just update the arguments
+          case _: EffectOp | _: Label => table -> m -> instr.mapArgs(canonicalArg)
+
+          // this instruction is a value op which
+          // does not assign to anything, this can be
+          // simply reconstructed
+          case v@ValueOp(_, _, _ , None, _) =>
+            table -> m -> v.toValue.fold.toInstruction
 
           // if the instruction is a value op (that assigns a value)
           // then we can perform LVN optimisation here
           case v@ValueOp(_, _, _, Some(dest), typ) =>
             // create a value from the instruction and
             // perform constant folding on the value
-            val lvn = foldConstants(instructionToValue(v))
+            val lvn = v.toValue.fold
 
             // append the dest and type to the instr
             def update(i: ValueOp, d: Ident = dest): ValueOp = i.mapDest(_ => Some(d)).mapType(_ => typ)
@@ -294,36 +81,21 @@ case object BrilLvn {
               table.addNewVar(dest, lvn) -> (m - dest) -> update(Id(table.valueToVariable(lvn)))
             } else if (reassigned.contains(dest)) {
               val newDest = randomIndent
-              table.addNewValue(newDest, lvn) -> (m + (dest -> newDest)) -> update(valueToInstruction(lvn), newDest)
+              table.addNewValue(newDest, lvn) -> (m + (dest -> newDest)) -> update(lvn.toInstruction, newDest)
             } else {
-              table.addNewValue(dest, lvn) -> (m - dest) -> update(valueToInstruction(lvn))
+              table.addNewValue(dest, lvn) -> (m - dest) -> update(lvn.toInstruction)
             }
         }
 
         // return the new table and updated instruction appended
         newTable -> newMap -> (instrs :+ newInstr)
-
-      case table -> instrs -> _ => table -> instrs
     })._2
-  }
-
-  /**
-   * Return the canonical variable for value
-   * represented by the given variable.
-   */
-  private def canonicalArg(src: Ident)(implicit varMap: Map[Ident, Ident], table: LvnTable): Ident =
-    table.numberToVariable(canonicalNumber(src))
-
-  /**
-   * Update an [[Instruction]] based on the given [[LvnTable]].
-   */
-  private def updateInstruction(instr: Instruction)(implicit varMap: Map[Ident, Ident], table: LvnTable): Instruction =
-    instr.mapArgs(canonicalArg)
 
   /**
    * Perform LVN optimisations on a [[Function]].
    */
   def localValueNumbering(function: Function): Function = {
+    // only perform LVN within a single block
     val blocks = getBlocks(function).values.flatMap(localValueNumbering).toSeq
     function.copy(instrs = blocks)
   }

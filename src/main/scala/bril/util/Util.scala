@@ -1,5 +1,9 @@
 package bril.util
 
+import bril.lang.BrilAst._
+import bril.optim.LvnTable
+import bril.optim.LvnTable._
+
 /**
  * Various utility functions.
  */
@@ -20,5 +24,18 @@ case object Util {
    */
   def zipMapUnion[K, V](x: Map[K, V], y: Map[K, V])(f: (V, V) => V)(d: V): Map[K, V] =
     (x.keySet ++ y.keySet).map(k => k -> f(x.getOrElse(k, d), y.getOrElse(k, d))).toMap
+
+  /**
+   * Return the canonical value represented by the given variable.
+   */
+  def canonicalNumber(src: Ident)(implicit varMap: Map[Ident, Ident], table: LvnTable): LvnNumber =
+    table.variableToNumber(varMap.getOrElse(src, src))
+
+  /**
+   * Return the canonical variable for value
+   * represented by the given variable.
+   */
+  def canonicalArg(src: Ident)(implicit varMap: Map[Ident, Ident], table: LvnTable): Ident =
+    table.numberToVariable(canonicalNumber(src))
 
 }
