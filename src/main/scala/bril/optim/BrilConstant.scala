@@ -7,7 +7,7 @@ import bril.optim.BrilValue._
  * This class contains all the semantic logic
  * to perform constant folding on Bril programs.
  */
-object BrilConstant {
+private object BrilConstant {
 
   /**
    * If the value contains a numeric constant then return it.

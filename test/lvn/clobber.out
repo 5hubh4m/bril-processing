@@ -2,11 +2,11 @@
   a: int = const 4;
   b: int = const 2;
   v2f21f: int = const 6;
-  sum2: int = id v2f21f;
+  sum2: int = const 6;
   prod1: int = const 36;
   sum1: int = const 0;
-  sum2: int = id sum1;
-  sum3: int = id v2f21f;
-  prod2: int = id prod1;
+  sum2: int = const 0;
+  sum3: int = const 6;
+  prod2: int = const 36;
   print prod1;
 }

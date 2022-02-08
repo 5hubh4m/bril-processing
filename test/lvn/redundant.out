@@ -2,7 +2,7 @@
   a: int = const 4;
   b: int = const 2;
   sum1: int = const 6;
-  sum2: int = id sum1;
+  sum2: int = const 6;
   prod: int = const 36;
   print prod;
 }

@@ -1,16 +1,14 @@
 package bril.optim
 
 import bril.lang.BrilAst._
-import bril.util.Util._
 
 import scala.collection.immutable.SortedSet
-import scala.math.Ordering._
 
 /**
  * This class represents values
  * of a LVN scheme.
  */
-sealed trait BrilValue {
+private sealed trait BrilValue {
 
   import BrilValue._
 
@@ -27,7 +25,7 @@ sealed trait BrilValue {
  * helper classes and other methods for performing
  * LVN optimisation.
  */
-object BrilValue {
+private object BrilValue {
 
   case class IdValue(source: Ident) extends BrilValue {
     def toInstruction(implicit table: ValueTable): ValueOp = Id(source)
@@ -84,11 +82,11 @@ object BrilValue {
      */
     def toValue(implicit varMap: Map[Ident, Ident], table: ValueTable): BrilValue = instr match {
       case Const(v, _, _) => ConstValue(v)
-      case Id(s, _, _) => canonicalValue(s)
-      case BinOp(op, x, y, _, _) => BinOpValue(op, canonicalValue(x), canonicalValue(y))
-      case UnOp(op, x, _, _) => UnOpValue(op, canonicalValue(x))
-      case Load(s, _, _) => LoadValue(canonicalValue(s))
-      case Phi(ss, ls, _, _) => PhiValue(SortedSet.from(ss.map(canonicalValue).zip(ls)))
+      case Id(s, _, _) => s.canonicalValue
+      case BinOp(op, x, y, _, _) => BinOpValue(op, x.canonicalValue, y.canonicalValue)
+      case UnOp(op, x, _, _) => UnOpValue(op, x.canonicalValue)
+      case Load(s, _, _) => LoadValue(s.canonicalValue)
+      case Phi(ss, ls, _, _) => PhiValue(SortedSet.from(ss.map(_.canonicalValue).zip(ls)))
       case _ => throw new AssertionError(f"$instr should not be a call or alloc instruction.")
     }
 
@@ -122,6 +120,25 @@ object BrilValue {
       case _ :: as => addOutOfScopeVars(as)
       case Nil => this
     }
+
+  }
+
+  implicit class CanonicalIdent(src: Ident) {
+
+    /**
+     * First translate the variable given the map,
+     * if possible, then return the corresponding
+     * value.
+     */
+    def canonicalValue(implicit varMap: Map[Ident, Ident], table: ValueTable): BrilValue =
+      table.variableToValue(varMap.getOrElse(src, src))
+
+    /**
+     * Return the canonical variable for value
+     * represented by the given variable.
+     */
+    def canonicalArg(implicit varMap: Map[Ident, Ident], table: ValueTable): Ident =
+      table.valueToVariable(canonicalValue)
 
   }
 

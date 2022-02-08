@@ -4,7 +4,6 @@ import bril.lang.BrilAst._
 import bril.optim.BrilConstant._
 import bril.optim.BrilValue._
 import bril.structure.BrilStructure._
-import bril.util.Util._
 
 /**
  * This class implements local value numbering
@@ -19,7 +18,7 @@ case object BrilLvn {
    */
   private def reassigned(block: Block): Seq[Set[Ident]] = {
     val assigns = block.tails.map(_.collect({ case ValueOp(_, _, _, Some(d), _) => d }).toSet).toSeq
-    if (assigns.isEmpty) Seq.empty else assigns.tail :+ Set.empty
+    if (block.isEmpty) Seq.empty else assigns.tail :+ Set.empty
   }
 
   /**
@@ -50,10 +49,11 @@ case object BrilLvn {
           // to not value-fy but also remove the dest from
           // the remapped set and also update the arguments
           case v: ValueOp if v.isInstanceOf[EffectOp] =>
-            table -> (m -- v.dest) -> instr.mapArgs(canonicalArg)
+            table -> (m -- v.dest) -> instr.mapArgs(_.canonicalArg)
 
           // if this is an effect op or a label then we just update the arguments
-          case _: EffectOp | _: Label => table -> m -> instr.mapArgs(canonicalArg)
+          case _: EffectOp | _: Label =>
+            table -> m -> instr.mapArgs(_.canonicalArg)
 
           // this instruction is a value op which
           // does not assign to anything, this can be
@@ -78,7 +78,8 @@ case object BrilLvn {
             // new value will be clobbered then rename the destination
             // and save the mapping in the remapped map
             if (table.valueToVariable.contains(lvn)) {
-              table.addVariable(dest, lvn) -> (m - dest) -> update(Id(table.valueToVariable(lvn)))
+              val instr = lvn match { case c: ConstValue => c.toInstruction case _ => Id(table.valueToVariable(lvn)) }
+              table.addVariable(dest, lvn) -> (m - dest) -> update(instr)
             } else if (reassigned.contains(dest)) {
               val newDest = randomIndent
               table.addVariable(newDest, lvn) -> (m + (dest -> newDest)) -> update(lvn.toInstruction, newDest)
