@@ -26,40 +26,31 @@ case object BrilLvn {
    * on a given basic [[Block]] of instructions.
    */
   private def localValueNumbering(block: Block): Block =
-    // we iterate on each instruction and keep track of three structures:
-    // the LVN table, a map of variables that have to be renamed, and
-    // the accumulating list of reformed instructions
-    block.zip(reassigned(block)).foldLeft(ValueTable() -> Map.empty[Ident, Ident] -> Seq.empty[Instruction])({
-      case tbl -> m -> instrs -> (instr -> reassigned) =>
+    // we iterate on each instruction and keep track of the value table
+    // and the accumulating list of reformed instructions
+    block.zip(reassigned(block)).foldLeft(ValueTable() -> Seq.empty[Instruction])({
+      case tbl -> instrs -> (instr -> reassigned) =>
         // if the instruction has any args we have
         // not seen before assume that are coming from
         // out of scope and add entry for them
-        implicit val table: ValueTable = tbl.addOutOfScopeVars(instr.args.map(a => m.getOrElse(a, a)))
+        implicit val table: ValueTable = tbl.addOutOfScopeVars(instr.args)
 
-        // create an implicit value for a variable map
-        // for assignments which were renamed to
-        // avoid clobbering
-        implicit val varMap: Map[Ident, Ident] = m
-
-        // if the instruction is a value operation we need
-        // to create a new value for it and update the LVN table
-        val newTable -> newMap -> newInstr = instr match {
+        val newTable -> newInstr = instr match {
           // if this is value instruction which is also
           // an effect instruction (call/alloc) then we need
-          // to not value-fy but also remove the dest from
-          // the remapped set and also update the arguments
+          // to not value-fy and just update the arguments
           case v: ValueOp if v.isInstanceOf[EffectOp] =>
-            table -> (m -- v.dest) -> instr.mapArgs(_.canonicalArg)
+            table -> instr.mapArgs(_.canonicalArg)
 
           // if this is an effect op or a label then we just update the arguments
           case _: EffectOp | _: Label =>
-            table -> m -> instr.mapArgs(_.canonicalArg)
+            table -> instr.mapArgs(_.canonicalArg)
 
           // this instruction is a value op which
           // does not assign to anything, this can be
           // simply reconstructed
           case v@ValueOp(_, _, _ , None, _) =>
-            table -> m -> v.toValue.fold.toInstruction
+            table -> v.toValue.fold.toInstruction
 
           // if the instruction is a value op (that assigns a value)
           // then we can perform LVN optimisation here
@@ -73,23 +64,22 @@ case object BrilLvn {
 
             // if the instruction is a value that already exists
             // in the table then return the value's canonical
-            // variable otherwise add the new value to the table
-            // with a new number and if the destination of this
-            // new value will be clobbered then rename the destination
-            // and save the mapping in the remapped map
+            // variable/const otherwise add the new value to the table
+            // additionally if the destination of this new value will be
+            // clobbered then rename the destination
             if (table.valueToVariable.contains(lvn)) {
               val instr = lvn match { case c: ConstValue => c.toInstruction case _ => Id(table.valueToVariable(lvn)) }
-              table.addVariable(dest, lvn) -> (m - dest) -> update(instr)
+              table.addVariable(dest, lvn) -> update(instr)
             } else if (reassigned.contains(dest)) {
-              val newDest = randomIndent
-              table.addVariable(newDest, lvn) -> (m + (dest -> newDest)) -> update(lvn.toInstruction, newDest)
+              val newDest = randomIdent
+              table.addVariable(newDest, lvn).addVariable(dest, lvn) -> update(lvn.toInstruction, newDest)
             } else {
-              table.addVariable(dest, lvn) -> (m - dest) -> update(lvn.toInstruction)
+              table.addVariable(dest, lvn) -> update(lvn.toInstruction)
             }
         }
 
         // return the new table and updated instruction appended
-        newTable -> newMap -> (instrs :+ newInstr)
+        newTable -> (instrs :+ newInstr)
     })._2
 
   /**

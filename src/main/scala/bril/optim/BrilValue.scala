@@ -80,7 +80,7 @@ private object BrilValue {
      * Extract a [[BrilValue]] from a [[ValueOp]] instruction
      * given an [[ValueTable]] table.
      */
-    def toValue(implicit varMap: Map[Ident, Ident], table: ValueTable): BrilValue = instr match {
+    def toValue(implicit table: ValueTable): BrilValue = instr match {
       case Const(v, _, _) => ConstValue(v)
       case Id(s, _, _) => s.canonicalValue
       case BinOp(op, x, y, _, _) => BinOpValue(op, x.canonicalValue, y.canonicalValue)
@@ -130,14 +130,14 @@ private object BrilValue {
      * if possible, then return the corresponding
      * value.
      */
-    def canonicalValue(implicit varMap: Map[Ident, Ident], table: ValueTable): BrilValue =
-      table.variableToValue(varMap.getOrElse(src, src))
+    def canonicalValue(implicit table: ValueTable): BrilValue =
+      table.variableToValue(src)
 
     /**
      * Return the canonical variable for value
      * represented by the given variable.
      */
-    def canonicalArg(implicit varMap: Map[Ident, Ident], table: ValueTable): Ident =
+    def canonicalArg(implicit table: ValueTable): Ident =
       table.valueToVariable(canonicalValue)
 
   }

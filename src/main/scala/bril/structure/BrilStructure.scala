@@ -113,7 +113,7 @@ case object BrilStructure {
   /**
    * Generate a random identifier for a variable.
    */
-  def randomIndent: Ident = "v" + Random.nextLong().toHexString.slice(0, 5)
+  def randomIdent: Ident = "v" + Random.nextLong().toHexString.slice(0, 5)
 
   /**
    * Generate a random identifier for a label.
