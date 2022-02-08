@@ -1,6 +1,7 @@
 package bril.util
 
 import bril.lang.BrilAst._
+import bril.optim.BrilValue
 import bril.optim.BrilValue._
 
 /**
@@ -25,16 +26,18 @@ case object Util {
     (x.keySet ++ y.keySet).map(k => k -> f(x.getOrElse(k, d), y.getOrElse(k, d))).toMap
 
   /**
-   * Return the canonical value represented by the given variable.
+   * First translate the variable given the map,
+   * if possible, then return the corresponding
+   * value.
    */
-  def canonicalNumber(src: Ident)(implicit varMap: Map[Ident, Ident], table: ValueTable): ValueNumber =
-    table.variableToNumber(varMap.getOrElse(src, src))
+  def canonicalValue(src: Ident)(implicit varMap: Map[Ident, Ident], table: ValueTable): BrilValue =
+    table.variableToValue(varMap.getOrElse(src, src))
 
   /**
    * Return the canonical variable for value
    * represented by the given variable.
    */
   def canonicalArg(src: Ident)(implicit varMap: Map[Ident, Ident], table: ValueTable): Ident =
-    table.numberToVariable(canonicalNumber(src))
+    table.valueToVariable(canonicalValue(src))
 
 }

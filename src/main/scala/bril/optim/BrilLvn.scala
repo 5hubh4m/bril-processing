@@ -77,13 +77,13 @@ case object BrilLvn {
             // with a new number and if the destination of this
             // new value will be clobbered then rename the destination
             // and save the mapping in the remapped map
-            if (table.valueToNumber.contains(lvn)) {
-              table.addNewVar(dest, lvn) -> (m - dest) -> update(Id(table.valueToVariable(lvn)))
+            if (table.valueToVariable.contains(lvn)) {
+              table.addVariable(dest, lvn) -> (m - dest) -> update(Id(table.valueToVariable(lvn)))
             } else if (reassigned.contains(dest)) {
               val newDest = randomIndent
-              table.addNewValue(newDest, lvn) -> (m + (dest -> newDest)) -> update(lvn.toInstruction, newDest)
+              table.addVariable(newDest, lvn) -> (m + (dest -> newDest)) -> update(lvn.toInstruction, newDest)
             } else {
-              table.addNewValue(dest, lvn) -> (m - dest) -> update(lvn.toInstruction)
+              table.addVariable(dest, lvn) -> (m - dest) -> update(lvn.toInstruction)
             }
         }
 
