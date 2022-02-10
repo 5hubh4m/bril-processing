@@ -1,17 +1,28 @@
 package bril.structure
 
 import bril.lang.BrilAst._
+import bril.structure.BrilCfg._
 import bril.util.Util._
 
 import scala.collection.immutable.VectorMap
 import scala.util.Random
 
 /**
+ * Defines a CFG for a Bril function.
+ *
+ * @param graph  The actual graph
+ * @param start  The start label in the graph
+ * @param end    The end label in the graph
+ * @param blocks The blocks in the CFG
+ */
+case class BrilCfg(graph: Graph, start: Ident, end: Ident, blocks: Map[Ident, Block])
+
+/**
  * This class contains utilities to
  * extract the structure of a Bril
  * program.
  */
-case object BrilStructure {
+object BrilCfg {
 
   /**
    * Type a single block of instructions.
@@ -24,23 +35,17 @@ case object BrilStructure {
   type Graph = Map[Ident, Set[Ident]]
 
   /**
-   * Defines a CFG which has the graph and the start and
-   * end blocks.
-   */
-  case class Cfg(graph: Graph, start: Ident, end: Ident)
-
-  /**
    * Convert the Bril program into the CFGs of
    * it's functions indexed by function names.
    */
-  def toCFGs(program: Program): Map[Ident, Cfg] = program.functions.map(f => f.name -> getCFG(getBlocks(f))).toMap
+  def toCFGs(program: Program): Map[Ident, BrilCfg] = program.functions.map(f => f.name -> getCFG(f)).toMap
 
   /**
    * The distribution of in-degrees and out-degrees
    * in the entire program CFG.
    */
   def degrees(program: Program): (Map[Int, Int], Map[Int, Int]) = {
-    val cfgs = program.functions.map(f => getCFG(getBlocks(f)))
+    val cfgs = program.functions.map(f => getCFG(f))
     val ins = cfgs.map(g => countInDegrees(g.graph))
     val outs = cfgs.map(g => countOutDegrees(g.graph))
 
@@ -84,7 +89,7 @@ case object BrilStructure {
   /**
    * Create an CFG from the given list of basic blocks.
    */
-  def getCFG(function: Function): Cfg = {
+  def getCFG(function: Function): BrilCfg = {
     // get the blocks
     val blocks = getBlocks(function)
 
@@ -97,7 +102,7 @@ case object BrilStructure {
     }).toMap
 
     // Get the start and end labels
-    Cfg(graph, blocks.keys.head, blocks.keys.last)
+    BrilCfg(graph, blocks.keys.head, blocks.keys.last, blocks)
   }
 
   /**

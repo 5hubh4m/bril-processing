@@ -3,7 +3,7 @@ package bril.run
 import bril.lang.BrilAst._
 import bril.lang.BrilJson._
 import bril.lang.BrilParse._
-import bril.structure.BrilStructure._
+import bril.structure.BrilCfg._
 import spray.json._
 
 import scala.util.{Failure, Random, Success}

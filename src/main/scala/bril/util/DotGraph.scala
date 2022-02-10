@@ -42,7 +42,7 @@ case class DotGraph[K](name: String, graph: Map[K, Set[K]]) {
 /**
  * Companion object.
  */
-case object DotGraph {
+object DotGraph {
 
   /**
    * Take a bunch of named graphs and create a graphviz digraph.

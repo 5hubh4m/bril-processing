@@ -3,13 +3,13 @@ package bril.optim
 import bril.lang.BrilAst._
 import bril.optim.BrilConstant._
 import bril.optim.BrilValue._
-import bril.structure.BrilStructure._
+import bril.structure.BrilCfg._
 
 /**
  * This class implements local value numbering
  * for Bril programs.
  */
-case object BrilLvn {
+object BrilLvn {
 
   /**
    * This method takes a block of instructions

@@ -1,14 +1,14 @@
 package bril.optim
 
 import bril.lang.BrilAst._
-import bril.structure.BrilStructure._
+import bril.structure.BrilCfg._
 
 import scala.annotation.tailrec
 
 /**
  * This class implements dead code elimination for a Bril function.
  */
-case object BrilDce {
+object BrilDce {
 
   /**
    * Perform trivial global dead code elimination.

@@ -1,7 +1,7 @@
 package bril.run
 
 import bril.lang.BrilParse._
-import bril.structure.BrilStructure._
+import bril.structure.BrilCfg._
 import bril.util.DotGraph
 
 import scala.util.{Failure, Random, Success}
@@ -23,7 +23,7 @@ object BrilCfg extends App {
 
     case Success(program) =>
       // print the CFGs to stdout in graphviz format
-      val graphs = toCFGs(program).map({ case f -> cfg => DotGraph(f, cfg) })
+      val graphs = toCFGs(program).map({ case f -> cfg => DotGraph(f, cfg.graph) })
       print(DotGraph.dotDiagram(graphs))
   }
 

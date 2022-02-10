@@ -3,7 +3,7 @@ package bril.util
 /**
  * Various utility functions.
  */
-case object Util {
+object Util {
 
   /**
    * Zip two maps together with a combiner function
