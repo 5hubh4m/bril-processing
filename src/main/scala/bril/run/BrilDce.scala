@@ -17,7 +17,7 @@ object BrilDce extends App {
     case Success(program) =>
       // perform dead code elimination and print the program
       val funcs = program.functions.map(reassignmentElimination).map(trivialDce)
-      print(program.copy(functions = funcs).prettyPrint)
+      print(printProgramToJson(program.copy(functions = funcs)))
   }
 
 }

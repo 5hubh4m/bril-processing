@@ -1,6 +1,5 @@
 package bril.run
 
-import bril.lang.BrilAst._
 import bril.lang.BrilParse._
 import bril.structure.BrilCfg._
 
@@ -19,7 +18,7 @@ object BrilBlock extends App {
       // break the program into blocks and
       // reconstruct to test the getBlocks function
       val functions = program.functions.map(f => f.copy(instrs = f.basicBlocks.values.flatten.toSeq))
-      print(program.copy(functions = functions).prettyPrint)
+      print(printProgramToJson(program.copy(functions = functions)))
   }
 
 }

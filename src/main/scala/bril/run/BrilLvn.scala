@@ -17,7 +17,7 @@ object BrilLvn extends App {
     case Success(program) =>
       // perform local value numbering and print the program
       val funcs = program.functions.map(localValueNumbering)
-      print(program.copy(functions = funcs).prettyPrint)
+      print(printProgramToJson(program.copy(functions = funcs)))
   }
 
 }
