@@ -75,38 +75,42 @@ private object BrilConstant {
       case UnOpValue(Not, x) => boolValue(x).map(b => ConstValue(BoolValue(!b))).getOrElse(lvn)
 
       // simulate the computation and return the result
-      case BinOpValue(op, x, y) => op -> boolValue(x) -> boolValue(y) match {
+      case BinOpValue(op: BoolOpType, x, y) => op -> boolValue(x) -> boolValue(y) match {
         case And -> Some(a) -> Some(b) => ConstValue(BoolValue(a && b))
         case Or -> Some(a) -> Some(b) => ConstValue(BoolValue(a || b))
-
-        // catch-all to return the same thing
         case _ => lvn
       }
 
       // simulate the computation and return the result
-      case BinOpValue(op, x, y) => op -> numericValue(x) -> numericValue(y) match {
+      case BinOpValue(op: IntOpType, x, y) => op -> numericValue(x) -> numericValue(y) match {
         case Add -> Some(a) -> Some(b) => ConstValue(NumericValue(a + b))
         case Mul -> Some(a) -> Some(b) => ConstValue(NumericValue(a * b))
         case Sub -> Some(a) -> Some(b) => ConstValue(NumericValue(a - b))
-        case FAdd -> Some(a) -> Some(b) => ConstValue(NumericValue(a + b))
-        case FMul -> Some(a) -> Some(b) => ConstValue(NumericValue(a * b))
-        case FSub -> Some(a) -> Some(b) => ConstValue(NumericValue(a - b))
         case LT -> Some(a) -> Some(b) => ConstValue(BoolValue(a < b))
         case GT -> Some(a) -> Some(b) => ConstValue(BoolValue(a > b))
         case LE -> Some(a) -> Some(b) => ConstValue(BoolValue(a <= b))
         case GE -> Some(a) -> Some(b) => ConstValue(BoolValue(a >= b))
         case EQ -> Some(a) -> Some(b) => ConstValue(BoolValue(a == b))
+        case Div -> Some(a) -> Some(b) if b != 0 => ConstValue(NumericValue(a / b))
+        case _ => lvn
+      }
+
+      // simulate the computation and return the result
+      case BinOpValue(op: FloatOpType, x, y) => op -> numericValue(x) -> numericValue(y) match {
+        case FAdd -> Some(a) -> Some(b) => ConstValue(NumericValue(a + b))
+        case FMul -> Some(a) -> Some(b) => ConstValue(NumericValue(a * b))
+        case FSub -> Some(a) -> Some(b) => ConstValue(NumericValue(a - b))
         case FLT -> Some(a) -> Some(b) => ConstValue(BoolValue(a < b))
         case FGT -> Some(a) -> Some(b) => ConstValue(BoolValue(a > b))
         case FLE -> Some(a) -> Some(b) => ConstValue(BoolValue(a <= b))
         case FGE -> Some(a) -> Some(b) => ConstValue(BoolValue(a >= b))
         case FEQ -> Some(a) -> Some(b) => ConstValue(BoolValue(a == b))
-        case Div -> Some(a) -> Some(b) if b != 0 => ConstValue(NumericValue(a / b))
         case FDiv -> Some(a) -> Some(b) if b != 0 => ConstValue(NumericValue(a / b))
-
-        // catch-all to return the same thing
         case _ => lvn
       }
+
+      // catch-all to return the same thing
+      case _ => lvn
     }
 
   }
