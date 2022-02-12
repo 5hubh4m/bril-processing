@@ -40,7 +40,7 @@ object BrilDce {
    * elimination on a function.
    */
   def reassignmentElimination(function: Function): Function = {
-    val blocks = getBlocks(function).values.flatMap(reassignmentElimination).toSeq
+    val blocks = function.basicBlocks.values.flatMap(reassignmentElimination).toSeq
     function.copy(instrs = blocks)
   }
 

@@ -4,6 +4,7 @@ import bril.lang.BrilAst._
 import bril.optim.BrilConstant._
 import bril.optim.BrilValue._
 import bril.structure.BrilCfg._
+import bril.util.Util._
 
 /**
  * This class implements local value numbering
@@ -87,7 +88,7 @@ object BrilLvn {
    */
   def localValueNumbering(function: Function): Function = {
     // only perform LVN within a single block
-    val blocks = getBlocks(function).values.flatMap(localValueNumbering).toSeq
+    val blocks = function.basicBlocks.values.flatMap(localValueNumbering).toSeq
     function.copy(instrs = blocks)
   }
 

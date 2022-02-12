@@ -1,24 +1,102 @@
 package bril.util
 
+import bril.lang.BrilAst._
+import bril.structure.BrilCfg._
+
+import scala.util.Random
+
 /**
  * Various utility functions.
  */
 object Util {
 
+  // set the seed for the random number generator
+  System
+    .getProperty("random.seed", "")
+    .toLongOption
+    .foreach(Random.setSeed)
+
   /**
-   * Zip two maps together with a combiner function
-   * using a union of the two key sets.
+   * Add methods to zip maps based on keys.
    *
    * @param x The first map
-   * @param y The second map
-   * @param f The reduction function
-   * @param d A default value
    * @tparam K The type of key
-   * @tparam V The type of value
-   *
-   * @return The new map
+   * @tparam X The type of value of first map
    */
-  def zipMapUnion[K, V](x: Map[K, V], y: Map[K, V])(f: (V, V) => V)(d: V): Map[K, V] =
-    (x.keySet ++ y.keySet).map(k => k -> f(x.getOrElse(k, d), y.getOrElse(k, d))).toMap
+  implicit class MapZip[K, X](x: Map[K, X]) {
+
+    /**
+     * Zip two maps together with a combiner function
+     * using a union of the two key sets.
+     *
+     * NOTE: the maps must have a default value!
+     *
+     * @param y The second map
+     * @param f The reduction function
+     * @tparam Y The type of value for second map
+     * @tparam Z The type of value for result map
+     *
+     * @return The new map
+     */
+    def zipUnion[Y, Z](y: Map[K, Y], f: (X, Y) => Z): Map[K, Z] =
+      (x.keySet ++ y.keySet).map(k => k -> f(x(k), y(k))).toMap
+
+    /**
+     * Specialization of [[zipUnion]] to zip elements into a tuple.
+     */
+    def zipUnion[Y](y: Map[K, Y]): Map[K, (X, Y)] =
+      (x.keySet ++ y.keySet).map(k => k -> (x(k) -> y(k))).toMap
+
+    /**
+     * Zip two maps together with a combiner function
+     * using an intersection of the two key sets.
+     *
+     * @param y The second map
+     * @param f The reduction function
+     * @tparam Y The type of value for second map
+     * @tparam Z The type of value for result map
+     *
+     * @return The new map
+     */
+    def zipIntersection[Y, Z](y: Map[K, Y], f: (X, Y) => Z): Map[K, Z] =
+      (x.keySet & y.keySet).map(k => k -> f(x(k), y(k))).toMap
+
+    /**
+     * Specialization of [[zipIntersection]] to zip elements into a tuple.
+     */
+    def zipIntersection[Y](y: Map[K, Y]): Map[K, (X, Y)] =
+      (x.keySet & y.keySet).map(k => k -> (x(k) -> y(k))).toMap
+
+  }
+
+  /**
+   * Count the out-degrees in a given graph.
+   *
+   * @return A map of how many nodes have a given
+   *         value of out-degree.
+   */
+  def countOutDegrees(graph: Graph): Map[Int, Int] = graph.foldLeft(Map(0 -> 0))({
+    case m -> (_ -> vs) => m + (vs.successors.size -> (m.getOrElse(vs.successors.size, 0) + 1))
+  })
+
+  /**
+   * Count the in-degrees in a given graph.
+   *
+   * @return A map of how many nodes have a given
+   *         value of in-degree.
+   */
+  def countInDegrees(graph: Graph): Map[Int, Int] = graph.foldLeft(Map(0 -> 0))({
+    case m -> (_ -> vs) => m + (vs.predecessors.size -> (m.getOrElse(vs.predecessors.size, 0) + 1))
+  })
+
+  /**
+   * Generate a random identifier for a variable.
+   */
+  def randomIdent: Ident = "v" + Random.nextLong().toHexString.slice(0, 5)
+
+  /**
+   * Generate a random identifier for a label.
+   */
+  def randomLabel: Ident = "l" + Random.nextLong().toHexString.slice(0, 5)
 
 }
