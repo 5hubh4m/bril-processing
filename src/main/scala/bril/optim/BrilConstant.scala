@@ -46,10 +46,10 @@ private object BrilConstant {
       case BinOpValue(And, _, y) if boolValue(y).contains(false) => ConstValue(BoolValue(false))
       case BinOpValue(Or, x, _) if boolValue(x).contains(true) => ConstValue(BoolValue(true))
       case BinOpValue(Or, _, y) if boolValue(y).contains(true) => ConstValue(BoolValue(true))
-      case BinOpValue(And, x, _) if boolValue(x).contains(true) => x
-      case BinOpValue(And, _, y) if boolValue(y).contains(true) => y
-      case BinOpValue(Or, x, _) if boolValue(x).contains(false) => x
-      case BinOpValue(Or, _, y) if boolValue(y).contains(false) => y
+      case BinOpValue(And, x, y) if boolValue(x).contains(true) => y
+      case BinOpValue(And, x, y) if boolValue(y).contains(true) => x
+      case BinOpValue(Or, x, y) if boolValue(x).contains(false) => y
+      case BinOpValue(Or, x, y) if boolValue(y).contains(false) => x
 
       // if any one of the values in sum or mul is 0 then we can determine result
       case BinOpValue(Add, x, y) if numericValue(x).contains(0) => y
