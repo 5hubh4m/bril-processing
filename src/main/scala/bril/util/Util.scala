@@ -17,6 +17,12 @@ object Util {
     .foreach(Random.setSeed)
 
   /**
+   * A default implementation of zip function
+   * that simply tuples it's arguments.
+   */
+  implicit def zipF[X, Y](x: X, y: Y): (X, Y) = x -> y
+
+  /**
    * Add methods to zip maps based on keys.
    *
    * @param x The first map
@@ -24,28 +30,6 @@ object Util {
    * @tparam X The type of value of first map
    */
   implicit class MapZip[K, X](x: Map[K, X]) {
-
-    /**
-     * Zip two maps together with a combiner function
-     * using a union of the two key sets.
-     *
-     * NOTE: the maps must have a default value!
-     *
-     * @param y The second map
-     * @param f The reduction function
-     * @tparam Y The type of value for second map
-     * @tparam Z The type of value for result map
-     *
-     * @return The new map
-     */
-    def zipUnion[Y, Z](y: Map[K, Y], f: (X, Y) => Z): Map[K, Z] =
-      (x.keySet ++ y.keySet).map(k => k -> f(x(k), y(k))).toMap
-
-    /**
-     * Specialization of [[zipUnion]] to zip elements into a tuple.
-     */
-    def zipUnion[Y](y: Map[K, Y]): Map[K, (X, Y)] =
-      (x.keySet ++ y.keySet).map(k => k -> (x(k) -> y(k))).toMap
 
     /**
      * Zip two maps together with a combiner function
@@ -58,14 +42,8 @@ object Util {
      *
      * @return The new map
      */
-    def zipIntersection[Y, Z](y: Map[K, Y], f: (X, Y) => Z): Map[K, Z] =
+    def zipMap[Y, Z](y: Map[K, Y])(implicit f: (X, Y) => Z): Map[K, Z] =
       (x.keySet & y.keySet).map(k => k -> f(x(k), y(k))).toMap
-
-    /**
-     * Specialization of [[zipIntersection]] to zip elements into a tuple.
-     */
-    def zipIntersection[Y](y: Map[K, Y]): Map[K, (X, Y)] =
-      (x.keySet & y.keySet).map(k => k -> (x(k) -> y(k))).toMap
 
   }
 

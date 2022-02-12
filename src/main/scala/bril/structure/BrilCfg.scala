@@ -63,25 +63,35 @@ object BrilCfg {
    */
   type Graph = Map[Ident, CfgNode]
 
-  /**
-   * Convert the Bril program into the CFGs of
-   * it's functions indexed by function names.
-   */
-  def toCFGs(program: Program): Map[Ident, BrilCfg] = program.functions.map(f => f.name -> f.toCFG).toMap
+  implicit class ProgramStructure(program: Program) {
 
-  /**
-   * The distribution of in-degrees and out-degrees
-   * in the entire program CFG.
-   */
-  def degrees(program: Program): (Map[Int, Int], Map[Int, Int]) = {
-    val cfgs = program.functions.map(_.toCFG)
-    val ins = cfgs.map(g => countInDegrees(g.graph).withDefaultValue(0))
-    val outs = cfgs.map(g => countOutDegrees(g.graph).withDefaultValue(0))
+    /**
+     * Convert the Bril program into the CFGs of
+     * it's functions indexed by function names.
+     */
+    lazy val toCfgs: Map[Ident, BrilCfg] = program.functions.map(f => f.name -> f.toCFG).toMap
 
-    // combine the distributions of individual functions
-    def zip(x: Int, y: Int): Int = x + y
-    (if (ins.isEmpty) Map.empty[Int, Int] else ins.reduce(_.zipUnion(_, zip))) ->
-    (if (outs.isEmpty) Map.empty[Int, Int] else outs.reduce(_.zipUnion(_, zip)))
+    /**
+     * A function to zip two int maps by union of keys.
+     */
+    private def reduce(x: Map[Int, Int], y: Map[Int, Int]): Map[Int, Int] = {
+      (x ++ (y.keySet -- x.keySet).map(_ -> 0)).zipMap(y ++ (x.keySet -- y.keySet).map(_ -> 0))(_ + _)
+    }
+
+    /**
+     * The distribution of in-degrees and out-degrees
+     * in the entire program CFG.
+     */
+    lazy val degrees: (Map[Int, Int], Map[Int, Int]) = {
+      val cfgs = program.functions.map(_.toCFG)
+      val ins = cfgs.map(g => countInDegrees(g.graph))
+      val outs = cfgs.map(g => countOutDegrees(g.graph))
+
+      // combine the distributions of individual functions
+      (if (ins.isEmpty) Map.empty[Int, Int] else ins.reduce(reduce)) ->
+      (if (outs.isEmpty) Map.empty[Int, Int] else outs.reduce(reduce))
+    }
+
   }
 
   /**
@@ -138,7 +148,7 @@ object BrilCfg {
         successors.keys.map({ l => l -> successors.collect({ case k -> ns if ns.contains(l) => k }).toSet }).toMap
 
       // join the successor and predecessor graphs
-      val graph = successors.zipIntersection(predecessors).map({
+      val graph = successors.zipMap(predecessors).map({
         case l -> ((x :: y :: Nil) -> pred) => l -> BrNode(l, x, y, pred)
         case l -> ((x :: Nil) -> pred) => l -> NextNode(l, x, pred)
         case l -> (_ -> pred) => l -> ExitNode(l, pred)

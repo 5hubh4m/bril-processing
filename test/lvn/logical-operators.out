@@ -11,10 +11,10 @@
   should_fold2: bool = const false;
   should_fold3: bool = const true;
   should_fold4: bool = const true;
-  no_fold1: bool = and t arg1;
-  no_fold2: bool = id no_fold1;
-  no_fold3: bool = or f arg1;
-  no_fold4: bool = id no_fold3;
+  no_fold1: bool = id arg1;
+  no_fold2: bool = id arg1;
+  no_fold3: bool = id arg1;
+  no_fold4: bool = id arg1;
   no_fold5: bool = and arg1 arg2;
   no_fold6: bool = or arg1 arg2;
   no_fold7: bool = not arg1;

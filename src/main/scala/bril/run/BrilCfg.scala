@@ -17,7 +17,7 @@ object BrilCfg extends App {
 
     case Success(program) =>
       // print the CFGs to stdout in graphviz format
-      val graphs = toCFGs(program).map({ case f -> cfg => DotGraph(f, cfg.graph) })
+      val graphs = program.toCfgs.map({ case f -> cfg => DotGraph(f, cfg.graph) })
       print(DotGraph.dotDiagram(graphs))
   }
 

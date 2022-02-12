@@ -58,20 +58,21 @@ object BrilDce {
 
         // depending on the instruction we add it to the delete set
         instr match {
-          case _: EffectOp => candidates -> del
+          case v@ValueOp(_, _, _, Some(dest), _) if candidates.contains(dest) && v.isInstanceOf[EffectOp] =>
+            candidates -> (del + candidates(dest))
 
-          case v: ValueOp if v.dest.exists(candidates.contains) =>
-            (candidates + (v.dest.get -> idx)) -> (del + candidates(v.dest.get))
+          case ValueOp(_, _, _, Some(dest), _) if candidates.contains(dest) =>
+            (candidates + (dest -> idx)) -> (del + candidates(dest))
 
-          case v: ValueOp if v.dest.isDefined =>
-            (candidates + (v.dest.get -> idx)) -> del
+          case ValueOp(_, _, _, Some(dest), _) =>
+            (candidates + (dest -> idx)) -> del
 
           case _ => candidates -> del
         }
     })
 
     // remove the instructions with the given instructions
-    lazy val instrs = block.zipWithIndex.filter({ case _ -> idx => !deleted.contains(idx) }).map(_._1)
+    lazy val instrs = block.zipWithIndex.collect({ case instr -> idx if !deleted.contains(idx) => instr })
 
     // if the length of instructions changes, recurse
     // otherwise return the same function

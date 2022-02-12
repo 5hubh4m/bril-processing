@@ -16,13 +16,13 @@ object BrilDegrees extends App {
 
     case Success(program) =>
       // get the in and out degrees distribution
-      val ins -> outs = degrees(program)
+      val ins -> outs = program.degrees
 
       // print the summary of the distribution
       println("In-degrees summary:")
-      ins.map({ case deg -> num => f"    ${num} blocks with ${deg} incoming edges." }).foreach(println)
+      ins.map({ case deg -> num => f"    $num blocks with $deg incoming edges." }).foreach(println)
       println("Out-degrees summary:")
-      outs.map({ case deg -> num => f"    ${num} blocks with ${deg} outgoing edges." }).foreach(println)
+      outs.map({ case deg -> num => f"    $num blocks with $deg outgoing edges." }).foreach(println)
   }
 
 }

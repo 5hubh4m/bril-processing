@@ -73,7 +73,7 @@ object BrilDataFlow {
   private def dataFlowImpl[T](cfg: BrilCfg, xs: Set[Ident], inputs: Map[Ident, T], outputs: Map[Ident, T])
                              (implicit framework: DataFlowFramework[T]): Map[Ident, (T, T)] =
     if (xs.isEmpty) {
-      if (framework.forward) inputs.zipIntersection(outputs) else outputs.zipIntersection(inputs)
+      if (framework.forward) inputs.zipMap(outputs) else outputs.zipMap(inputs)
     } else {
       // get a label from the set
       val label = xs.head
