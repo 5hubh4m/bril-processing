@@ -3,15 +3,9 @@ package bril.run
 import bril.lang.BrilParse._
 import bril.optim.BrilDce._
 
-import scala.util.{Failure, Random, Success}
+import scala.util.{Failure, Success}
 
 object BrilDce extends App {
-
-  // set the seed for the random number generator
-  System
-    .getProperty("random.seed", "")
-    .toLongOption
-    .foreach(Random.setSeed)
 
   // create the AST from the JSON read from stdin and
   // check if the program has been correctly parsed
@@ -22,8 +16,8 @@ object BrilDce extends App {
 
     case Success(program) =>
       // perform dead code elimination and print the program
-      val funcs = program.functions.map(trivialDce).map(reassignmentElimination)
-      print(printProgramToJson(program.copy(functions = funcs)))
+      val funcs = program.functions.map(reassignmentElimination).map(trivialDce)
+      print(program.copy(functions = funcs).prettyPrint)
   }
 
 }

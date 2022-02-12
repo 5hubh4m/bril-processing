@@ -4,15 +4,9 @@ import bril.lang.BrilParse._
 import bril.structure.BrilCfg._
 import bril.util.DotGraph
 
-import scala.util.{Failure, Random, Success}
+import scala.util.{Failure, Success}
 
 object BrilCfg extends App {
-
-  // set the seed for the random number generator
-  System
-    .getProperty("random.seed", "")
-    .toLongOption
-    .foreach(Random.setSeed)
   
   // create the AST from the JSON read from stdin and
   // check if the program has been correctly parsed
