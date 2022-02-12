@@ -1,8 +1,93 @@
 package bril.structure
 
+import bril.lang.BrilAst.Ident
+import bril.structure.BrilCfg.Block
+import bril.util.Util._
+
+import scala.annotation.tailrec
+
 /**
- *
+ * This class implements the scaffolding for
+ * performing data flow analysis on a Bril program.
  */
 object BrilDataFlow {
+
+  /**
+   * This trait defines the functions for a type
+   * which is a result of a data flow analysis.
+   */
+  trait DataFlowFramework[T] {
+    /**
+     * Initial value for each block.
+     */
+    val init: T
+
+    /**
+     * Whether the analysis is forward or backward direction.
+     */
+    val forward: Boolean
+
+    /**
+     * Combine the result from previous blocks into one.
+     */
+    def combine(xs: Seq[T]): T
+
+    /**
+     * Perform local analysis with the results of the previous blocks' result.
+     */
+    def transfer(input: T, block: Block): T
+  }
+
+  /**
+   * This trait implements some of the functions for
+   * data flow analysis for the sets.
+   */
+  trait SetDataFlowAnalysis[T] extends DataFlowFramework[Set[T]] {
+    val init: Set[T] = Set.empty
+    def combine(xs: Seq[Set[T]]): Set[T] = xs.flatten.toSet
+  }
+
+  /**
+   * Perform the data flow analysis on a CFG in
+   * and return the map of the results.
+   */
+  def dataFlow[T](cfg: BrilCfg)(implicit framework: DataFlowFramework[T]): Map[Ident, (T, T)] = {
+    val default = cfg.graph.keys.map(_ -> framework.init).toMap
+    dataFlowImpl(cfg, cfg.graph.keySet, default, default)
+  }
+
+  /**
+   * Perform a data flow analysis on the given [[BrilCfg]].
+   *
+   * @param cfg      The CFG
+   * @param xs       The current worklist of blocks
+   * @param inputs   The input values (before block for forward, after block for backward)
+   * @param outputs  The output values (after block for forward, before block for backward)
+   * @param framework The instantiation of the analysis
+   *
+   * @tparam T The type of the result
+   *
+   * @return The input and output values
+   */
+  @tailrec
+  private def dataFlowImpl[T](cfg: BrilCfg, xs: Set[Ident], inputs: Map[Ident, T], outputs: Map[Ident, T])
+                             (implicit framework: DataFlowFramework[T]): Map[Ident, (T, T)] =
+    if (xs.isEmpty) {
+      if (framework.forward) inputs.zipIntersection(outputs) else outputs.zipIntersection(inputs)
+    } else {
+      // get a label from the set
+      val label = xs.head
+      val remaining = xs.tail
+
+      // update the out for this current node
+      val blocks = if (framework.forward) cfg.graph(label).predecessors else cfg.graph(label).successors
+      lazy val next = if (framework.forward) cfg.graph(label).successors else cfg.graph(label).predecessors
+      lazy val input = framework.combine(blocks.toSeq.map(outputs))
+      val output = framework.transfer(input, cfg.blocks(label))
+
+      // if the out is updated then append again
+      if (output == outputs(label)) dataFlowImpl(cfg, remaining, inputs, outputs)
+      else dataFlowImpl(cfg, remaining ++ next, inputs + (label -> input), outputs + (label -> output))
+    }
 
 }
