@@ -46,18 +46,23 @@ private object BrilConstant {
       case BinOpValue(And, _, y) if boolValue(y).contains(false) => ConstValue(BoolValue(false))
       case BinOpValue(Or, x, _) if boolValue(x).contains(true) => ConstValue(BoolValue(true))
       case BinOpValue(Or, _, y) if boolValue(y).contains(true) => ConstValue(BoolValue(true))
+      case BinOpValue(And, x, _) if boolValue(x).contains(true) => x
+      case BinOpValue(And, _, y) if boolValue(y).contains(true) => y
+      case BinOpValue(Or, x, _) if boolValue(x).contains(false) => x
+      case BinOpValue(Or, _, y) if boolValue(y).contains(false) => y
 
       // if any one of the values in sum or mul is 0 then we can determine result
       case BinOpValue(Add, x, y) if numericValue(x).contains(0) => y
       case BinOpValue(Add, x, y) if numericValue(y).contains(0) => x
-      case BinOpValue(Mul, x, _) if numericValue(x).contains(0) => ConstValue(NumericValue(0))
-      case BinOpValue(Mul, _, y) if numericValue(y).contains(0) => ConstValue(NumericValue(0))
       case BinOpValue(FAdd, x, y) if numericValue(x).contains(0) => y
       case BinOpValue(FAdd, x, y) if numericValue(y).contains(0) => x
+      case BinOpValue(Mul, x, _) if numericValue(x).contains(0) => ConstValue(NumericValue(0))
+      case BinOpValue(Mul, _, y) if numericValue(y).contains(0) => ConstValue(NumericValue(0))
       case BinOpValue(FMul, x, _) if numericValue(x).contains(0) => ConstValue(NumericValue(0))
       case BinOpValue(FMul, _, y) if numericValue(y).contains(0) => ConstValue(NumericValue(0))
 
       // if the first value of div or last value of sub is zero then we can determine the result
+      case BinOpValue(Sub, x, y) if x == y => ConstValue(NumericValue(0))
       case BinOpValue(Sub, x, y) if numericValue(y).contains(0) => x
       case BinOpValue(FSub, x, y) if numericValue(y).contains(0) => x
       case BinOpValue(Div, x, y) if numericValue(x).contains(0) && numericValue(y).exists(_ != 0) => ConstValue(NumericValue(0))
@@ -67,52 +72,41 @@ private object BrilConstant {
       case BinOpValue(PtrAdd, x, y) if numericValue(y).contains(0) => x
 
       // calculate the results if all values are defined constants
-      case UnOpValue(Not, x) if boolValue(x).isDefined => ConstValue(BoolValue(!boolValue(x).get))
+      case UnOpValue(Not, x) => boolValue(x).map(b => ConstValue(BoolValue(!b))).getOrElse(lvn)
 
-      case BinOpValue(op, x, y) if boolValue(x).isDefined && boolValue(y).isDefined =>
-        val a = boolValue(x).get
-        val b = boolValue(y).get
+      // simulate the computation and return the result
+      case BinOpValue(op, x, y) => op -> boolValue(x) -> boolValue(y) match {
+        case And -> Some(a) -> Some(b) => ConstValue(BoolValue(a && b))
+        case Or -> Some(a) -> Some(b) => ConstValue(BoolValue(a || b))
 
-        // simulate the computation and return the result
-        op match {
-          case And => ConstValue(BoolValue(a && b))
-          case Or => ConstValue(BoolValue(a || b))
+        // catch-all to return the same thing
+        case _ => lvn
+      }
 
-          // catch-all to return the same thing
-          case _ => lvn
-        }
+      // simulate the computation and return the result
+      case BinOpValue(op, x, y) => op -> numericValue(x) -> numericValue(y) match {
+        case Add -> Some(a) -> Some(b) => ConstValue(NumericValue(a + b))
+        case Mul -> Some(a) -> Some(b) => ConstValue(NumericValue(a * b))
+        case Sub -> Some(a) -> Some(b) => ConstValue(NumericValue(a - b))
+        case FAdd -> Some(a) -> Some(b) => ConstValue(NumericValue(a + b))
+        case FMul -> Some(a) -> Some(b) => ConstValue(NumericValue(a * b))
+        case FSub -> Some(a) -> Some(b) => ConstValue(NumericValue(a - b))
+        case LT -> Some(a) -> Some(b) => ConstValue(BoolValue(a < b))
+        case GT -> Some(a) -> Some(b) => ConstValue(BoolValue(a > b))
+        case LE -> Some(a) -> Some(b) => ConstValue(BoolValue(a <= b))
+        case GE -> Some(a) -> Some(b) => ConstValue(BoolValue(a >= b))
+        case EQ -> Some(a) -> Some(b) => ConstValue(BoolValue(a == b))
+        case FLT -> Some(a) -> Some(b) => ConstValue(BoolValue(a < b))
+        case FGT -> Some(a) -> Some(b) => ConstValue(BoolValue(a > b))
+        case FLE -> Some(a) -> Some(b) => ConstValue(BoolValue(a <= b))
+        case FGE -> Some(a) -> Some(b) => ConstValue(BoolValue(a >= b))
+        case FEQ -> Some(a) -> Some(b) => ConstValue(BoolValue(a == b))
+        case Div -> Some(a) -> Some(b) if b != 0 => ConstValue(NumericValue(a / b))
+        case FDiv -> Some(a) -> Some(b) if b != 0 => ConstValue(NumericValue(a / b))
 
-      case BinOpValue(op, x, y) if numericValue(x).isDefined && numericValue(y).isDefined =>
-        val a = numericValue(x).get
-        val b = numericValue(y).get
-
-        // simulate the computation and return the result
-        op match {
-          case Add => ConstValue(NumericValue(a + b))
-          case Mul => ConstValue(NumericValue(a * b))
-          case Sub => ConstValue(NumericValue(a - b))
-          case FAdd => ConstValue(NumericValue(a + b))
-          case FMul => ConstValue(NumericValue(a * b))
-          case FSub => ConstValue(NumericValue(a - b))
-          case LT => ConstValue(BoolValue(a < b))
-          case GT => ConstValue(BoolValue(a > b))
-          case LE => ConstValue(BoolValue(a <= b))
-          case GE => ConstValue(BoolValue(a >= b))
-          case EQ => ConstValue(BoolValue(a == b))
-          case FLT => ConstValue(BoolValue(a < b))
-          case FGT => ConstValue(BoolValue(a > b))
-          case FLE => ConstValue(BoolValue(a <= b))
-          case FGE => ConstValue(BoolValue(a >= b))
-          case FEQ => ConstValue(BoolValue(a == b))
-          case Div if b != 0 => ConstValue(NumericValue(a / b))
-          case FDiv if b != 0 => ConstValue(NumericValue(a / b))
-
-          // catch-all to return the same thing
-          case _ => lvn
-        }
-
-      // catch-all to return the same thing
-      case _ => lvn
+        // catch-all to return the same thing
+        case _ => lvn
+      }
     }
 
   }
