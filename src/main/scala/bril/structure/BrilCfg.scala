@@ -72,13 +72,6 @@ object BrilCfg {
     lazy val toCfgs: Map[Ident, BrilCfg] = program.functions.map(f => f.name -> f.toCFG).toMap
 
     /**
-     * A function to zip two int maps by union of keys.
-     */
-    private def reduce(x: Map[Int, Int], y: Map[Int, Int]): Map[Int, Int] = {
-      (x ++ (y.keySet -- x.keySet).map(_ -> 0)).zipMap(y ++ (x.keySet -- y.keySet).map(_ -> 0))(_ + _)
-    }
-
-    /**
      * The distribution of in-degrees and out-degrees
      * in the entire program CFG.
      */
@@ -88,8 +81,8 @@ object BrilCfg {
       val outs = cfgs.map(g => countOutDegrees(g.graph))
 
       // combine the distributions of individual functions
-      (if (ins.isEmpty) Map.empty[Int, Int] else ins.reduce(reduce)) ->
-      (if (outs.isEmpty) Map.empty[Int, Int] else outs.reduce(reduce))
+      (if (ins.isEmpty) Map.empty[Int, Int] else ins.reduce(_.zipUn(_)(_ + _))) ->
+      (if (outs.isEmpty) Map.empty[Int, Int] else outs.reduce(_.zipUn(_)(_ + _)))
     }
 
   }
@@ -148,7 +141,7 @@ object BrilCfg {
         successors.keys.map({ l => l -> successors.collect({ case k -> ns if ns.contains(l) => k }).toSet }).toMap
 
       // join the successor and predecessor graphs
-      val graph = successors.zipMap(predecessors).map({
+      val graph = successors.zipInt(predecessors).map({
         case l -> ((x :: y :: Nil) -> pred) => l -> BrNode(l, x, y, pred)
         case l -> ((x :: Nil) -> pred) => l -> NextNode(l, x, pred)
         case l -> (_ -> pred) => l -> ExitNode(l, pred)
@@ -160,5 +153,24 @@ object BrilCfg {
 
   }
 
+  /**
+   * Count the out-degrees in a given graph.
+   *
+   * @return A map of how many nodes have a given
+   *         value of out-degree.
+   */
+  def countOutDegrees(graph: Graph): Map[Int, Int] = graph.foldLeft(Map(0 -> 0))({
+    case m -> (_ -> vs) => m + (vs.successors.size -> (m.getOrElse(vs.successors.size, 0) + 1))
+  })
+
+  /**
+   * Count the in-degrees in a given graph.
+   *
+   * @return A map of how many nodes have a given
+   *         value of in-degree.
+   */
+  def countInDegrees(graph: Graph): Map[Int, Int] = graph.foldLeft(Map(0 -> 0))({
+    case m -> (_ -> vs) => m + (vs.predecessors.size -> (m.getOrElse(vs.predecessors.size, 0) + 1))
+  })
 
 }

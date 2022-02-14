@@ -17,6 +17,7 @@ object BrilDataFlow {
    * which is a result of a data flow analysis.
    */
   trait DataFlowFramework[T] {
+
     /**
      * Initial value for each block.
      */
@@ -30,64 +31,66 @@ object BrilDataFlow {
     /**
      * Combine the result from previous blocks into one.
      */
-    def combine(xs: Seq[T]): T
+    def combine(xs: Seq[T])(implicit cfg: BrilCfg): T
 
     /**
      * Perform local analysis with the results of the previous blocks' result.
      */
-    def transfer(input: T, block: Block): T
+    def transfer(input: T, block: Block)(implicit cfg: BrilCfg): T
+
   }
 
   /**
    * This trait implements some of the functions for
    * data flow analysis for the sets.
    */
-  trait SetDataFlowAnalysis[T] extends DataFlowFramework[Set[T]] {
+  trait SetDataFlowFramework[T] extends DataFlowFramework[Set[T]] {
     val init: Set[T] = Set.empty
-    def combine(xs: Seq[Set[T]]): Set[T] = xs.flatten.toSet
+    def combine(xs: Seq[Set[T]])(implicit cfg: BrilCfg): Set[T] = xs.flatten.toSet
   }
 
-  /**
-   * Perform the data flow analysis on a CFG in
-   * and return the map of the results.
-   */
-  def dataFlow[T](cfg: BrilCfg)(implicit framework: DataFlowFramework[T]): Map[Ident, (T, T)] = {
-    val default = cfg.graph.keys.map(_ -> framework.init).toMap
-    dataFlowImpl(cfg, cfg.graph.keySet, default, default)
-  }
+  implicit class DataFlowAnalysis(cfg: BrilCfg) {
 
-  /**
-   * Perform a data flow analysis on the given [[BrilCfg]].
-   *
-   * @param cfg      The CFG
-   * @param xs       The current worklist of blocks
-   * @param inputs   The input values (before block for forward, after block for backward)
-   * @param outputs  The output values (after block for forward, before block for backward)
-   * @param framework The instantiation of the analysis
-   *
-   * @tparam T The type of the result
-   *
-   * @return The input and output values
-   */
-  @tailrec
-  private def dataFlowImpl[T](cfg: BrilCfg, xs: Set[Ident], inputs: Map[Ident, T], outputs: Map[Ident, T])
-                             (implicit framework: DataFlowFramework[T]): Map[Ident, (T, T)] =
-    if (xs.isEmpty) {
-      if (framework.forward) inputs.zipMap(outputs) else outputs.zipMap(inputs)
-    } else {
-      // get a label from the set
-      val label = xs.head
-      val remaining = xs.tail
+    /**
+     * An implicit CFG to pass to framework functions.
+     */
+    implicit val cfgImpl: BrilCfg = cfg
 
-      // update the out for this current node
-      val blocks = if (framework.forward) cfg.graph(label).predecessors else cfg.graph(label).successors
-      lazy val next = if (framework.forward) cfg.graph(label).successors else cfg.graph(label).predecessors
-      lazy val input = framework.combine(blocks.toSeq.map(outputs))
-      val output = framework.transfer(input, cfg.blocks(label))
-
-      // if the out is updated then append again
-      if (output == outputs(label)) dataFlowImpl(cfg, remaining, inputs, outputs)
-      else dataFlowImpl(cfg, remaining ++ next, inputs + (label -> input), outputs + (label -> output))
+    /**
+     * Perform the data flow analysis on a CFG in
+     * and return the map of the results.
+     */
+    def dataFlow[T](implicit framework: DataFlowFramework[T]): Map[Ident, (T, T)] = {
+      val nodes = cfg.graph.keySet
+      val default = cfg.graph.keys.map(_ -> framework.init).toMap
+      dataFlowImpl(nodes, default, default)
     }
+
+    /**
+     * Perform a data flow analysis on the given [[BrilCfg]].
+     *
+     * @param xs        The current worklist of blocks
+     * @param inputs    The input values (before block for forward, after block for backward)
+     * @param outputs   The output values (after block for forward, before block for backward)
+     * @param framework The instantiation of the analysis
+     * @tparam T The type of the result
+     * @return The input and output values
+     */
+    @tailrec
+    private def dataFlowImpl[T](xs: Set[Ident], inputs: Map[Ident, T], outputs: Map[Ident, T])
+                               (implicit framework: DataFlowFramework[T]): Map[Ident, (T, T)] = xs match {
+      case SetMatch(Left(Nil)) if framework.forward => inputs.zipInt(outputs)
+      case SetMatch(Left(Nil)) => outputs.zipInt(inputs)
+      case SetMatch(Right(label -> remaining)) =>
+        val blocks = if (framework.forward) cfg.graph(label).predecessors else cfg.graph(label).successors
+        lazy val next = if (framework.forward) cfg.graph(label).successors else cfg.graph(label).predecessors
+        lazy val input = framework.combine(blocks.toSeq.map(outputs))
+        val output = framework.transfer(input, cfg.blocks(label))
+
+        // if the out is updated then append again
+        if (output == outputs(label)) dataFlowImpl(remaining, inputs, outputs)
+        else dataFlowImpl(remaining ++ next, inputs + (label -> input), outputs + (label -> output))
+    }
+  }
 
 }
