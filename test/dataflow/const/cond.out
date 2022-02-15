@@ -1,0 +1,13 @@
+main:
+  l1f6f3:
+    in: ∅
+    out: a: 47, b: 42, cond: true
+  left:
+    in: a: 47, b: 42, cond: true
+    out: a: 47, b: 1, cond: true, c: 5
+  right:
+    in: a: 47, b: 42, cond: true
+    out: a: 2, b: 42, cond: true, c: 10
+  end:
+    in: cond: true
+    out: cond: true

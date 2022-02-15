@@ -1,0 +1,13 @@
+main:
+  l1f6f3:
+    in: ∅
+    out: result: 1, i: 8
+  header:
+    in: zero: 0, one: 1
+    out: zero: 0, one: 1
+  body:
+    in: zero: 0, one: 1
+    out: zero: 0, one: 1
+  end:
+    in: zero: 0, one: 1
+    out: zero: 0, one: 1

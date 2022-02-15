@@ -1,0 +1,13 @@
+main:
+  l1f6f3:
+    in: cond
+    out: a
+  left:
+    in: a
+    out: a, c
+  right:
+    in: ∅
+    out: a, c
+  end:
+    in: a, c
+    out: ∅

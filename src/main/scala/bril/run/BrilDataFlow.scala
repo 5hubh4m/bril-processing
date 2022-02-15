@@ -5,7 +5,6 @@ import bril.lang.BrilParse._
 import bril.structure.BrilCfg
 import bril.structure.BrilCfg._
 import bril.structure.BrilDataFlow._
-import bril.util.Util._
 
 import scala.util.{Failure, Success}
 
@@ -31,16 +30,13 @@ object BrilDataFlow extends App {
   /**
    * Reaching definitions analysis.
    */
-  object ReachingDefinitionsFramework extends DataFlowFramework[Map[Ident, Set[ValueOp]]] {
+  object ReachingDefinitionsFramework extends MapDataFlowFramework[Set[ValueOp]] {
 
     type Result = Map[Ident, Set[ValueOp]]
 
     val forward: Boolean = true
 
-    val init: Result = Map.empty
-
-    def combine(xs: Seq[Result])(implicit cfg: BrilCfg): Result =
-      if (xs.isEmpty) Map.empty else xs.reduce(_.zipUn(_)(_ ++ _))
+    def merge(x: Set[ValueOp], y: Set[ValueOp]): Set[ValueOp] = x ++ y
 
     def transfer(input: Result, block: Block)(implicit cfg: BrilCfg): Result = {
       block.foldLeft(input)({
@@ -54,19 +50,16 @@ object BrilDataFlow extends App {
   /**
    * Constant propagation analysis.
    */
-  object ConstantPropagationFramework extends DataFlowFramework[Map[Ident, Option[Value]]] {
+  object ConstantPropagationFramework extends MapDataFlowFramework[Option[Value]] {
 
     type Result = Map[Ident, Option[Value]]
 
-    val init: Result = Map.empty
-
     val forward: Boolean = true
 
-    def combine(xs: Seq[Result])(implicit cfg: BrilCfg): Result =
-      if (xs.isEmpty) Map.empty else xs.reduce(_.zipUn(_)({
-        case Some(x) -> Some(y) if x == y => Some(x)
-        case _ => None
-      }))
+    def merge(x: Option[Value], y: Option[Value]): Option[Value] = x -> y match {
+      case Some(x) -> Some(y) if x == y => Some(x)
+      case _ => None
+    }
 
     def transfer(input: Result, block: Block)(implicit cfg: BrilCfg): Result = block.foldLeft(input)({
       case consts -> Const(v, Some(dest), _) => consts + (dest -> Some(v))

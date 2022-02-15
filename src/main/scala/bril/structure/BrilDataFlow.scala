@@ -1,6 +1,6 @@
 package bril.structure
 
-import bril.lang.BrilAst.Ident
+import bril.lang.BrilAst.{Ident, Instruction}
 import bril.structure.BrilCfg.Block
 import bril.util.Util._
 
@@ -45,8 +45,26 @@ object BrilDataFlow {
    * data flow analysis for the sets.
    */
   trait SetDataFlowFramework[T] extends DataFlowFramework[Set[T]] {
+
     val init: Set[T] = Set.empty
+
     def combine(xs: Seq[Set[T]])(implicit cfg: BrilCfg): Set[T] = xs.flatten.toSet
+
+  }
+
+  /**
+   * This trait implements some of the functions for
+   * data flow analysis for the maps from identifiers to values.
+   */
+  trait MapDataFlowFramework[T] extends DataFlowFramework[Map[Ident, T]] {
+
+    def merge(x: T, y: T): T
+
+    val init: Map[Ident, T] = Map.empty
+
+    def combine(xs: Seq[Map[Ident, T]])(implicit cfg: BrilCfg): Map[Ident, T] =
+      if (xs.isEmpty) Map.empty else xs.reduce(_.zipUn(_)(merge))
+
   }
 
   implicit class DataFlowAnalysis(cfg: BrilCfg) {
@@ -82,13 +100,13 @@ object BrilDataFlow {
       case SetMatch(Left(Nil)) if framework.forward => inputs.zipInt(outputs)
       case SetMatch(Left(Nil)) => outputs.zipInt(inputs)
       case SetMatch(Right(label -> remaining)) =>
-        val blocks = if (framework.forward) cfg.graph(label).predecessors else cfg.graph(label).successors
         lazy val next = if (framework.forward) cfg.graph(label).successors else cfg.graph(label).predecessors
-        lazy val input = framework.combine(blocks.toSeq.map(outputs))
+        val blocks = if (framework.forward) cfg.graph(label).predecessors else cfg.graph(label).successors
+        val input = framework.combine(blocks.toSeq.map(outputs))
         val output = framework.transfer(input, cfg.blocks(label))
 
         // if the out is updated then append again
-        if (output == outputs(label)) dataFlowImpl(remaining, inputs, outputs)
+        if (output == outputs(label)) dataFlowImpl(remaining, inputs + (label -> input), outputs)
         else dataFlowImpl(remaining ++ next, inputs + (label -> input), outputs + (label -> output))
     }
   }
